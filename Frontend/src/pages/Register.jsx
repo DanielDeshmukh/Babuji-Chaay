@@ -31,7 +31,7 @@ const Register = () => {
         email: form.email,
         password: form.password,
         options: {
-          emailRedirectTo: "http://localhost:5173/splashscreen", // redirect after confirm
+          emailRedirectTo: "http://localhost:5173/splashscreen",
         },
       });
 
@@ -63,8 +63,9 @@ const Register = () => {
   };
 
   return (
-    <div className="w-full h-[630px]   flex flex-col lg:flex-row overflow-hidden">
-      <div className="w-full lg:w-1/2 flex flex-col justify-center  items-center px-6 sm:px-10 py-8">
+    <div className="w-full h-[630px] flex flex-col lg:flex-row overflow-hidden bg-background text-foreground transition-colors duration-300">
+      {/* Left Section - Form */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center px-6 sm:px-10 py-8">
         <div className="w-full max-w-md">
           <div className="flex items-center justify-center mb-6 lg:hidden">
             <img
@@ -74,11 +75,11 @@ const Register = () => {
             />
           </div>
 
-          <h1 className="text-xl font-bold text-gray-800 mb-6">
+          <h1 className="text-xl font-bold mb-6 text-foreground">
             Babuji Chaay
           </h1>
 
-          <h2 className="text-2xl font-semibold text-gray-800 mb-2">
+          <h2 className="text-2xl font-semibold mb-2 text-foreground">
             Create an account
           </h2>
 
@@ -90,7 +91,7 @@ const Register = () => {
               onChange={handleChange}
               placeholder="Enter your email"
               required
-              className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#1E4B2E]"
+              className="w-full border border-border rounded-lg p-3 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition"
             />
             <input
               type="password"
@@ -99,7 +100,7 @@ const Register = () => {
               onChange={handleChange}
               placeholder="Enter your password"
               required
-              className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#1E4B2E]"
+              className="w-full border border-border rounded-lg p-3 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition"
             />
 
             <div className="flex items-center space-x-2">
@@ -109,9 +110,9 @@ const Register = () => {
                 name="terms"
                 checked={form.terms}
                 onChange={handleChange}
-                className="w-4 h-4"
+                className="w-4 h-4 accent-primary"
               />
-              <label htmlFor="terms" className="text-gray-600 text-sm">
+              <label htmlFor="terms" className="text-muted-foreground text-sm">
                 I agree to all the Terms & Conditions
               </label>
             </div>
@@ -119,40 +120,47 @@ const Register = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#1E4B2E] text-white p-3 rounded-lg hover:bg-[#163a23] transition disabled:opacity-50"
+              className="w-full bg-primary text-primary-foreground p-3 rounded-lg hover:bg-primary/90 transition disabled:opacity-50"
             >
               {loading ? "Signing up..." : "Sign up"}
             </button>
           </form>
 
           {message && (
-            <p className="text-center text-sm text-red-600 mt-4">{message}</p>
+            <p className="text-center text-sm text-destructive mt-4">
+              {message}
+            </p>
           )}
 
           <div className="flex items-center my-6">
-            <hr className="flex-grow border-gray-300" />
-            <span className="px-2 text-gray-500 text-sm">or</span>
-            <hr className="flex-grow border-gray-300" />
+            <hr className="flex-grow border-border" />
+            <span className="px-2 text-muted-foreground text-sm">or</span>
+            <hr className="flex-grow border-border" />
           </div>
 
           <button
             onClick={handleGoogleSignIn}
-            className="w-full flex items-center justify-center border rounded-lg p-3 hover:bg-gray-100 transition"
+            className="w-full flex items-center justify-center border border-border rounded-lg p-3 hover:bg-muted transition"
           >
             <FcGoogle size={20} className="mr-2" /> Continue with Google
           </button>
 
-          <p className="text-center text-sm text-gray-600 mt-6">
+          <p className="text-center text-sm text-muted-foreground mt-6">
             Already have an account?{" "}
-            <a href="/login" className="text-[#1E4B2E] font-medium">
+            <a href="/login" className="text-secondary font-medium hover:underline">
               Log in
             </a>
           </p>
         </div>
       </div>
 
-      <div className="hidden lg:flex w-1/2 bg-[#1E4B2E] text-white flex-col  items-center justify-center">
-        <img src={Logo} alt="Babuji Chaay" className="h-56 w-56 object-contain" />
+      {/* Right Section - Branding */}
+      <div className="hidden lg:flex w-1/2 bg-primary text-primary-foreground flex-col items-center justify-center">
+        <img
+          src={Logo}
+          alt="Babuji Chaay"
+          className="h-56 w-56 object-contain drop-shadow-xl"
+        />
       </div>
     </div>
   );

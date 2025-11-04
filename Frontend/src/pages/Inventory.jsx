@@ -48,7 +48,7 @@ const Inventory = () => {
     return () => supabase.removeChannel(channel);
   }, []);
 
-  if (loading) return <p className="text-center mt-6">Loading products...</p>;
+  if (loading) return <p className="text-center mt-6 text-foreground">Loading products...</p>;
 
   const groupedProducts = products.reduce((acc, product) => {
     if (!acc[product.category]) acc[product.category] = [];
@@ -97,7 +97,7 @@ const Inventory = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#1E4B2E]">
+    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
       <Header />
 
       <main className="flex-grow px-4 py-6 max-w-7xl mx-auto w-full">
@@ -106,18 +106,18 @@ const Inventory = () => {
           placeholder="Search products..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full p-3 mb-4 rounded-lg border border-[#D4A23A] focus:ring-2 focus:ring-[#D4A23A] focus:outline-none bg-[#FDFCF6] text-[#1E4B2E] placeholder-gray-500"
+          className="w-full p-3 mb-4 rounded-lg border border-border focus:ring-2 focus:ring-accent focus:outline-none bg-card text-foreground placeholder-muted-foreground"
         />
 
-        <div className="flex gap-2 overflow-x-auto mb-6 pb-2 scrollbar-thin scrollbar-thumb-[#D4A23A] scrollbar-track-transparent">
+        <div className="flex gap-2 overflow-x-auto mb-6 pb-2 scrollbar-thin scrollbar-thumb-accent scrollbar-track-transparent">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
               className={`px-4 py-2 rounded-full text-sm whitespace-nowrap flex-shrink-0 transition-colors ${
                 activeCategory === cat
-                  ? "bg-[#D4A23A] text-[#1E4B2E] font-semibold"
-                  : "bg-[#FDFCF6] text-[#1E4B2E] hover:bg-[#E6CCB2]"
+                  ? "bg-accent text-accent-foreground font-semibold"
+                  : "bg-card text-foreground hover:bg-muted"
               }`}
             >
               {cat}
@@ -132,14 +132,16 @@ const Inventory = () => {
             return (
               <div
                 key={product.id}
-                className="border border-[#D4A23A]/60 rounded-lg p-4 bg-[#FDFCF6] shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+                className="border border-border rounded-lg p-4 bg-card shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
               >
                 <div>
-                  <p className="font-semibold text-base mb-1 text-[#1E4B2E]">
+                  <p className="font-semibold text-base mb-1 text-foreground">
                     {product.name}
                   </p>
-                  <p className="text-sm text-gray-700">Qty: {product.quantity}</p>
-                  <p className="text-sm font-bold text-[#D4A23A] mt-1">
+                  <p className="text-sm text-muted-foreground">
+                    Qty: {product.quantity}
+                  </p>
+                  <p className="text-sm font-bold text-accent mt-1">
                     ₹{product.price}
                   </p>
                 </div>
@@ -154,7 +156,7 @@ const Inventory = () => {
                 ) : (
                   <button
                     onClick={() => addToMenu(product.id)}
-                    className="mt-3 w-full px-3 py-2 rounded-md text-sm font-medium bg-[#1E4B2E] text-[#FDFCF6] hover:bg-[#163B23] transition-colors"
+                    className="mt-3 w-full px-3 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                   >
                     Add
                   </button>
@@ -165,7 +167,6 @@ const Inventory = () => {
         </div>
       </main>
 
-      <Footer />
     </div>
   );
 };

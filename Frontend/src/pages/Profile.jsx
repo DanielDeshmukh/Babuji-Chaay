@@ -46,7 +46,6 @@ const ProfileForm = ({ profile, setProfile, user, loading, setLoading, setMessag
     }
   };
 
-  // ---- Save Profile ----
   const handleSave = async (e) => {
     e.preventDefault();
     if (!profile.full_name.trim()) {
@@ -72,13 +71,6 @@ const ProfileForm = ({ profile, setProfile, user, loading, setLoading, setMessag
     }
   };
 
-  const handleAdminVerification = (e) => {
-    e.preventDefault();
-    setShowAuthModal(true);
-
-  }
-
-  // ---- Sign Out ----
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -90,10 +82,10 @@ const ProfileForm = ({ profile, setProfile, user, loading, setLoading, setMessag
   };
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center md:space-x-8">
+    <div className="flex flex-col md:flex-row md:items-center md:space-x-8 text-foreground">
       {/* Avatar Section */}
       <div className="flex flex-col items-center space-y-3">
-        <div className="w-28 h-28 rounded-full overflow-hidden bg-gray-200 border-2 border-[#1E4B2E]">
+        <div className="w-28 h-28 rounded-full overflow-hidden bg-muted border-2 border-primary">
           {profile.avatar_url ? (
             <img
               src={profile.avatar_url}
@@ -101,7 +93,7 @@ const ProfileForm = ({ profile, setProfile, user, loading, setLoading, setMessag
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
+            <div className="flex items-center justify-center h-full text-muted-foreground">
               No Avatar
             </div>
           )}
@@ -116,14 +108,14 @@ const ProfileForm = ({ profile, setProfile, user, loading, setLoading, setMessag
           />
           <label
             htmlFor="avatar-upload"
-            className="cursor-pointer text-sm px-3 py-1 bg-[#D4A23A] text-[#1E4B2E] rounded-lg hover:bg-[#c4932f]"
+            className="cursor-pointer text-sm px-3 py-1 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90"
           >
             Change
           </label>
           {avatarFile && (
             <button
               onClick={uploadAvatar}
-              className="ml-2 text-sm px-3 py-1 bg-[#1E4B2E] text-white rounded-lg hover:bg-[#163B23]"
+              className="ml-2 text-sm px-3 py-1 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
               disabled={loading}
             >
               Save
@@ -136,13 +128,13 @@ const ProfileForm = ({ profile, setProfile, user, loading, setLoading, setMessag
       <div className="flex-1 mt-6 md:mt-0">
         {isEditing ? (
           <form onSubmit={handleSave} className="space-y-4">
-            <h3 className="text-lg font-semibold text-[#1E4B2E]">Edit Profile</h3>
+            <h3 className="text-lg font-semibold text-foreground">Edit Profile</h3>
 
             <input
               type="text"
               value={profile.full_name}
               onChange={(e) => setProfile((p) => ({ ...p, full_name: e.target.value }))}
-              className="w-full border border-[#D4A23A] rounded-lg p-3 bg-white text-[#1E4B2E]"
+              className="w-full border border-border rounded-lg p-3 bg-card text-foreground"
               placeholder="Enter your full name"
               disabled={loading}
             />
@@ -153,10 +145,10 @@ const ProfileForm = ({ profile, setProfile, user, loading, setLoading, setMessag
               onChange={(e) =>
                 setProfile((p) => ({
                   ...p,
-                  pin: e.target.value.slice(0, 4), // 4 digits only
+                  pin: e.target.value.slice(0, 4),
                 }))
               }
-              className="w-full border border-[#D4A23A] rounded-lg p-3 bg-white text-[#1E4B2E]"
+              className="w-full border border-border rounded-lg p-3 bg-card text-foreground"
               placeholder="Set 4-digit PIN"
               disabled={loading}
             />
@@ -165,14 +157,14 @@ const ProfileForm = ({ profile, setProfile, user, loading, setLoading, setMessag
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-5 py-2 bg-[#1E4B2E] hover:bg-[#163B23] rounded-lg text-sm font-medium text-white"
+                className="flex-1 px-5 py-2 bg-primary hover:bg-primary/90 rounded-lg text-sm font-medium text-primary-foreground"
               >
                 {loading ? "Saving..." : "Save"}
               </button>
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className="flex-1 px-5 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm font-medium text-white"
+                className="flex-1 px-5 py-2 bg-muted hover:bg-muted/80 rounded-lg text-sm font-medium text-muted-foreground"
               >
                 Cancel
               </button>
@@ -180,19 +172,19 @@ const ProfileForm = ({ profile, setProfile, user, loading, setLoading, setMessag
           </form>
         ) : (
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-[#1E4B2E]">
+            <h2 className="text-xl font-semibold text-foreground">
               {profile.full_name || "Your Name"}
             </h2>
-            <p className="text-gray-600">{user.email}</p>
-            <p className="text-gray-700">
+            <p className="text-muted-foreground">{user.email}</p>
+            <p className="text-muted-foreground">
               <span className="font-semibold">PIN:</span>{" "}
               {profile.pin ? "****" : "Not set"}
             </p>
 
             <div className="flex gap-2 mt-3">
               <button
-                onClick={(e) => setIsEditing(true)}
-                className="px-4 py-2 bg-[#1E4B2E] hover:bg-[#163B23] rounded-lg text-sm font-medium text-white"
+                onClick={() => setIsEditing(true)}
+                className="px-4 py-2 bg-primary hover:bg-primary/90 rounded-lg text-sm font-medium text-primary-foreground"
               >
                 Edit
               </button>
@@ -258,10 +250,10 @@ const Profile = () => {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#1E4B2E]">
+    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
       <Header />
       <main className="flex-grow py-10 px-4 md:px-6">
-        <div className="max-w-4xl mx-auto bg-[#FDFCF6] shadow-xl rounded-2xl p-6 md:p-10">
+        <div className="max-w-4xl mx-auto bg-card shadow-xl rounded-2xl p-6 md:p-10">
           {user ? (
             <ProfileForm
               profile={profile}
@@ -272,18 +264,15 @@ const Profile = () => {
               setMessage={setMessage}
             />
           ) : (
-            <p className="text-center text-[#1E4B2E]">
-              ⚠️ Please log in to view your profile.
-            </p>
+            <p className="text-center text-foreground">Loading user data...</p>
           )}
           {message && (
-            <p className="text-center text-sm mt-4 text-[#1E4B2E]">{message}</p>
+            <p className="mt-4 text-center text-sm text-foreground">{message}</p>
           )}
         </div>
       </main>
-      <Footer />
+      <AuthModal isOpen={!user} onClose={() => {}} />
     </div>
   );
-};
-
+}
 export default Profile;

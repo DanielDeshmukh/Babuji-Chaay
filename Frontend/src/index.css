@@ -1,3 +1,43 @@
+/* index.css — Version 2 */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* 🌞 Light Mode (cream background, forest green accent) */
+    --background: 40 40% 95%; /* soft cream */
+    --foreground: 147 44% 15%;
+    --card: 40 40% 97%;
+    --card-foreground: 147 44% 15%;
+    --primary: 147 44% 21%; /* dark green buttons */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 45 74% 50%; /* golden accent */
+    --secondary-foreground: 147 44% 15%;
+    --accent: 45 74% 50%;
+    --accent-foreground: 0 0% 100%;
+    --muted: 40 25% 85%;
+    --muted-foreground: 147 10% 35%;
+    --border: 40 25% 80%;
+    --ring: 147 44% 21%;
+  }
+
+  .dark {
+    /* 🌙 Dark Mode (deep green background, gold accents) */
+    --background: 147 44% 10%;
+    --foreground: 40 40% 97%;
+    --card: 147 44% 15%;
+    --card-foreground: 40 40% 97%;
+    --primary: 45 74% 50%; /* gold buttons */
+    --primary-foreground: 147 44% 10%;
+    --secondary: 147 20% 25%;
+    --secondary-foreground: 45 74% 85%;
+    --accent: 45 74% 50%;
+    --accent-foreground: 147 44% 10%;
+    --muted: 147 44% 20%;
+    --muted-foreground: 40 40% 90%;
+    --border: 147 44% 25%;
+    --ring: 45 74% 50%;
+  }
+}

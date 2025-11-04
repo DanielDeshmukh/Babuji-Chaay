@@ -16,7 +16,7 @@ const CreationPage = () => {
           </h1>
 
           {/* Component for creating special number */}
-          <div className="bg-white shadow-lg rounded-2xl p-6 sm:p-8 border border-[#E5E7EB]">
+          <div className="bg-white shadow-lg rounded-2xl p-6 sm:p-8 border-[#E5E7EB]">
             <SpecialNumber />
           </div>
         </div>

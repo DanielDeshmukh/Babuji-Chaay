@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import supabase from "../lib/supabaseClient";
@@ -76,48 +78,56 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const handleKeyPress = (value) => {
-    if (value === "clear") {
-      setPin("");
-    } else if (value === "enter") {
-      handleVerify();
-    } else if (pin.length < 4) {
-      setPin((prev) => prev + value);
-    }
+    if (value === "clear") setPin("");
+    else if (value === "enter") handleVerify();
+    else if (pin.length < 4) setPin((prev) => prev + value);
   };
 
   if (!isOpen) return null;
 
   const buttonClass = (key) =>
     `py-4 rounded-xl text-xl font-bold shadow-md active:scale-95 transition ${
-      activeKey === key ? "bg-[#D4A23A] text-[#1E4B2E]" : ""
+      activeKey === key ? "bg-yellow-500 text-green-900" : ""
     }`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      <div className="relative z-10 w-full max-w-sm bg-[#FDFCF6] shadow-2xl rounded-2xl p-5 sm:p-8 max-h-[90vh] overflow-y-auto flex flex-col">
-        <h2 className="text-xl sm:text-2xl font-semibold text-center text-[#1E4B2E] mb-4 sm:mb-6">
+      {/* Modal */}
+      <div className="relative z-10 w-full max-w-sm bg-card rounded-2xl p-5 sm:p-8 shadow-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+        >
+          ✕
+        </button>
+
+        <h2 className="text-xl sm:text-2xl font-semibold text-center text-foreground mb-4 sm:mb-6">
           Enter Verification PIN
         </h2>
 
         {user ? (
           <>
-            <div className="relative w-full border border-[#D4A23A] rounded-lg py-3 px-10 text-center text-2xl tracking-[1rem] bg-white text-[#1E4B2E]">
+            {/* PIN Input */}
+            <div className="relative w-full border border-primary rounded-lg py-3 px-10 text-center text-2xl tracking-[1rem] bg-background text-foreground">
               {showPin ? pin : pin.replace(/./g, "•")}
               <button
                 type="button"
                 onClick={() => setShowPin((prev) => !prev)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#1E4B2E] hover:text-[#163B23]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground hover:text-accent"
               >
                 {showPin ? <FiEyeOff size={22} /> : <FiEye size={22} />}
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 mt-5 flex-grow">
+            {/* Number Pad */}
+            <div className="grid grid-cols-3 gap-3 mt-5">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                 <button
                   key={num}
@@ -126,7 +136,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
                     handleKeyPress(num.toString());
                     setTimeout(() => setActiveKey(null), 150);
                   }}
-                  className={`bg-[#1E4B2E] hover:bg-[#163B23] text-white ${buttonClass(
+                  className={`bg-primary hover:bg-accent text-background ${buttonClass(
                     num.toString()
                   )}`}
                   disabled={loading}
@@ -134,13 +144,14 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
                   {num}
                 </button>
               ))}
+
               <button
                 onClick={() => {
                   setActiveKey("clear");
                   handleKeyPress("clear");
                   setTimeout(() => setActiveKey(null), 150);
                 }}
-                className={`bg-gray-400 hover:bg-gray-500 text-white text-lg font-semibold ${buttonClass(
+                className={`bg-gray-400 hover:bg-gray-500 text-background text-lg font-semibold ${buttonClass(
                   "clear"
                 )}`}
                 disabled={loading}
@@ -154,9 +165,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
                   handleKeyPress("0");
                   setTimeout(() => setActiveKey(null), 150);
                 }}
-                className={`bg-[#1E4B2E] hover:bg-[#163B23] text-white ${buttonClass(
-                  "0"
-                )}`}
+                className={`bg-primary hover:bg-accent text-background ${buttonClass("0")}`}
                 disabled={loading}
               >
                 0
@@ -168,7 +177,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
                   handleKeyPress("enter");
                   setTimeout(() => setActiveKey(null), 150);
                 }}
-                className={`bg-[#D4A23A] hover:bg-[#c4932f] text-[#1E4B2E] text-lg font-semibold ${buttonClass(
+                className={`bg-yellow-500 hover:bg-yellow-600 text-green-900 text-lg font-semibold ${buttonClass(
                   "enter"
                 )}`}
                 disabled={loading}
@@ -178,21 +187,14 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
             </div>
           </>
         ) : (
-          <p className="text-center text-[#1E4B2E]">
+          <p className="text-center text-foreground">
             Please log in to continue.
           </p>
         )}
 
         {message && (
-          <p className="mt-4 text-center text-sm text-[#1E4B2E]">{message}</p>
+          <p className="mt-4 text-center text-sm text-foreground">{message}</p>
         )}
-
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
-        >
-          ✕
-        </button>
       </div>
     </div>
   );
