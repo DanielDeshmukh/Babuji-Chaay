@@ -1,0 +1,60 @@
+/* src/Keyboard.css */
+
+/* Basic styling for the keyboard, adapt to your theme */
+.simple-keyboard {
+  background-color: var(--card); /* Example using CSS variables if you have them */
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.simple-keyboard .hg-button {
+  /* Default button styles */
+  background-color: var(--background); /* Light grey for keys */
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 1.2em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 0.1s ease-out,
+    transform 0.1s ease-out,
+    box-shadow 0.1s ease-out; /* Add transform and box-shadow to transition */
+}
+
+/* Hover effect */
+.simple-keyboard .hg-button:hover {
+  background-color: var(--muted); /* Slightly darker on hover */
+}
+
+/* Active/Clicking effect */
+.simple-keyboard .hg-button:active {
+  background-color: var(--primary); /* Darker, or your primary color */
+  color: var(--primary-foreground); /* Text color for active state */
+  transform: translateY(1px); /* Move down slightly */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); /* Smaller shadow to simulate press */
+}
+
+/* Specific styles for special keys if needed */
+.simple-keyboard .hg-button.hg-button-space {
+  width: 150px; /* Example fixed width for spacebar */
+}
+
+.simple-keyboard .hg-button.hg-button-bksp,
+.simple-keyboard .hg-button.hg-button-enter {
+  background-color: var(--accent); /* Different color for action keys */
+  color: var(--accent-foreground);
+}
+
+.simple-keyboard .hg-button.hg-button-bksp:active,
+.simple-keyboard .hg-button.hg-button-enter:active {
+  background-color: darken(var(--accent), 10%); /* Darken accent on active */
+}
+
+/* You might need to adjust these if you are using a specific UI framework like Tailwind */
+/* If using Tailwind, you'd configure your theme to map these CSS variables. */
+
+

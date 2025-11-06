@@ -3,13 +3,11 @@
 import React, { useEffect, useState } from "react";
 import supabase from "../lib/supabaseClient";
 import Header from "../components/Header";
-import VirtualKeyboard from "../components/VirtualKeyboard";
 
 const Menu = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [activeInput, setActiveInput] = useState(null);
   const [billItems, setBillItems] = useState([]);
   const [showBill, setShowBill] = useState(false);
   const [specialDiscount, setSpecialDiscount] = useState(false);
@@ -17,11 +15,6 @@ const Menu = () => {
   const [upiPaid, setUpiPaid] = useState(0);
   const [pendingCashInput, setPendingCashInput] = useState("");
   const [currentBillNumber, setCurrentBillNumber] = useState(null);
-  const [upiQr, setUpiQr] = useState(null);
-  const [upiQrAmount, setUpiQrAmount] = useState(0);
-  const [showQrModal, setShowQrModal] = useState(false);
-
-  const UPI_ID = "deshmukhdaniel2005@okhdfcbank";
 
   const fetchMenu = async () => {
     try {
@@ -34,14 +27,6 @@ const Menu = () => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    const handleFocus = (e) => setActiveInput(e.target);
-    const inputs = document.querySelectorAll("input");
-    inputs.forEach((input) => input.addEventListener("focus", handleFocus));
-    return () =>
-      inputs.forEach((input) => input.removeEventListener("focus", handleFocus));
-  }, []);
 
   const addToBill = (item) => {
     const existing = billItems.find((b) => b.menu_item_id === item.id);
@@ -74,22 +59,6 @@ const Menu = () => {
       setMenuItems((prev) => prev.filter((m) => m.id !== menuId));
     } catch (err) {
       console.error("Error removing menu item:", err.message);
-    }
-  };
-
-  const generateUpiQr = async (amount) => {
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-upi-qr", {
-        body: { upi: UPI_ID, amount },
-      });
-      if (error) throw error;
-      if (data?.qr) {
-        setUpiQr(data.qr);
-        setUpiQrAmount(amount);
-        setShowQrModal(true);
-      }
-    } catch (err) {
-      console.error("Error generating UPI QR:", err);
     }
   };
 
@@ -151,8 +120,6 @@ const Menu = () => {
         setPendingCashInput("");
         setSpecialDiscount(false);
         setCurrentBillNumber(null);
-        setUpiQr(null);
-        setShowQrModal(false);
       }, 3000);
     } catch (err) {
       console.error("Error during payment:", err.message);
@@ -170,6 +137,7 @@ const Menu = () => {
       )
       .subscribe();
     return () => supabase.removeChannel(channel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading)
@@ -216,6 +184,7 @@ const Menu = () => {
           type="text"
           placeholder="Search menu..."
           value={search}
+          data-key="search"
           onChange={(e) => setSearch(e.target.value)}
           className="w-full p-3 mb-6 rounded-lg border border-primary focus:ring-2 focus:ring-primary focus:outline-none bg-card text-foreground placeholder-muted-foreground"
         />
@@ -286,8 +255,9 @@ const Menu = () => {
 
         {/* Bill Sidebar */}
         <div
-          className={`fixed top-0 right-0 w-full md:w-96 h-full shadow-lg p-6 flex flex-col transform transition-transform z-50 duration-300 bg-card border-l border-border ${showBill ? "translate-x-0" : "translate-x-full"
-            }`}
+          className={`fixed top-0 right-0 w-full md:w-96 h-full shadow-lg p-6 flex flex-col transform transition-transform z-50 duration-300 bg-card border-l border-border ${
+            showBill ? "translate-x-0" : "translate-x-full"
+          }`}
         >
           <button
             onClick={() => setShowBill(false)}
@@ -350,10 +320,11 @@ const Menu = () => {
                 <button
                   key={idx}
                   onClick={() => setCashPaid(amt)}
-                  className={`px-4 py-2 rounded-lg font-bold ${cashPaid === amt
+                  className={`px-4 py-2 rounded-lg font-bold ${
+                    cashPaid === amt
                       ? "bg-green-600 text-white"
                       : "bg-primary text-background"
-                    } hover:bg-green-500 transition`}
+                  } hover:bg-green-500 transition`}
                 >
                   ₹{amt}
                 </button>
@@ -368,6 +339,7 @@ const Menu = () => {
                 <input
                   type="number"
                   placeholder="Enter amount"
+                  data-key="pendingCash"
                   value={pendingCashInput}
                   onChange={(e) => setPendingCashInput(e.target.value)}
                   className="p-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
@@ -390,11 +362,6 @@ const Menu = () => {
                       if (val > 0) {
                         const newUpiPaid = upiPaid + val;
                         setUpiPaid(newUpiPaid);
-                        const updatedPending = Math.max(
-                          0,
-                          totalAmount - (cashPaid + newUpiPaid)
-                        );
-                        generateUpiQr(updatedPending);
                       }
                       setPendingCashInput("");
                     }}
@@ -408,14 +375,15 @@ const Menu = () => {
             )}
 
             <p
-              className={`font-bold mt-2 ${pendingAmount < 0 ? "text-red-600" : "text-green-600"
-                }`}
+              className={`font-bold mt-2 ${
+                pendingAmount < 0 ? "text-red-600" : "text-green-600"
+              }`}
             >
               {pendingAmount <= 0 && pendingAmount !== 0
                 ? `Return ₹${Math.abs(pendingAmount)} to customer`
                 : pendingAmount === 0
-                  ? "Payment complete"
-                  : ""}
+                ? "Payment complete"
+                : ""}
             </p>
 
             <button
@@ -427,25 +395,6 @@ const Menu = () => {
             </button>
           </div>
         </div>
-
-        {/* UPI QR Modal */}
-        {showQrModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
-            <div className="bg-card p-6 rounded-lg flex flex-col items-center relative">
-              <button
-                onClick={() => setShowQrModal(false)}
-                className="absolute top-2 right-2 text-red-500 font-bold"
-              >
-                Close
-              </button>
-              <p className="font-bold text-lg text-foreground mb-4">
-                Scan QR to pay ₹{upiQrAmount}
-              </p>
-              {upiQr && <img src={upiQr} alt="UPI QR" className="w-48 h-48" />}
-            </div>
-          </div>
-        )}
-        <VirtualKeyboard activeInput={activeInput} setActiveInput={setActiveInput} />
       </main>
     </div>
   );

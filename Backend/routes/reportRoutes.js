@@ -4,7 +4,6 @@ import { generateSalesReport } from "../controllers/reportController.js"
 
 const router = express.Router()
 
-// GET /api/reports/generate
 router.get("/generate", generateSalesReport)
 
 export default router
