@@ -1,60 +1,112 @@
-/* src/Keyboard.css */
+/* =============================
+   ☕ Babuji Chaay POS Keyboard
+   Cream + Forest Green Theme
+   ============================= */
 
-/* Basic styling for the keyboard, adapt to your theme */
 .simple-keyboard {
-  background-color: var(--card); /* Example using CSS variables if you have them */
+  background: hsl(var(--card));
+  border-radius: 16px;
   padding: 10px;
-  border-radius: 8px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
+  transition: all 0.25s ease;
+  max-width: 95%;
+  margin: 0 auto;
 }
 
+/* Regular keys */
 .simple-keyboard .hg-button {
-  /* Default button styles */
-  background-color: var(--background); /* Light grey for keys */
-  color: var(--foreground);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 1.2em;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-  transition:
-    background-color 0.1s ease-out,
-    transform 0.1s ease-out,
-    box-shadow 0.1s ease-out; /* Add transform and box-shadow to transition */
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border-radius: 10px;
+  border: 1px solid hsl(var(--border));
+  font-size: 1rem;
+  font-weight: 500;
+  height: 3rem;
+  margin: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.15s ease;
 }
 
-/* Hover effect */
+/* Hover / Active effects */
 .simple-keyboard .hg-button:hover {
-  background-color: var(--muted); /* Slightly darker on hover */
+  background-color: hsl(var(--muted));
+  transform: translateY(-1px);
 }
 
-/* Active/Clicking effect */
 .simple-keyboard .hg-button:active {
-  background-color: var(--primary); /* Darker, or your primary color */
-  color: var(--primary-foreground); /* Text color for active state */
-  transform: translateY(1px); /* Move down slightly */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); /* Smaller shadow to simulate press */
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  transform: scale(0.97);
 }
 
-/* Specific styles for special keys if needed */
-.simple-keyboard .hg-button.hg-button-space {
-  width: 150px; /* Example fixed width for spacebar */
+/* Special Keys */
+.simple-keyboard .hg-button.hg-button-enter {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 .simple-keyboard .hg-button.hg-button-bksp,
-.simple-keyboard .hg-button.hg-button-enter {
-  background-color: var(--accent); /* Different color for action keys */
-  color: var(--accent-foreground);
+.simple-keyboard .hg-button.hg-button-shift,
+.simple-keyboard .hg-button.hg-button-tab {
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  font-weight: 600;
 }
 
-.simple-keyboard .hg-button.hg-button-bksp:active,
-.simple-keyboard .hg-button.hg-button-enter:active {
-  background-color: darken(var(--accent), 10%); /* Darken accent on active */
+.simple-keyboard .hg-button.hg-button-space {
+  width: 40%;
 }
 
-/* You might need to adjust these if you are using a specific UI framework like Tailwind */
-/* If using Tailwind, you'd configure your theme to map these CSS variables. */
+/* Highlight when pressed via physical keyboard */
+.simple-keyboard .hg-button.key-active {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  box-shadow: 0 0 0 3px hsl(var(--ring));
+  transform: scale(0.97);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .simple-keyboard .hg-button {
+    font-size: 0.9rem;
+    height: 2.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .simple-keyboard {
+    border-radius: 12px;
+    padding: 6px;
+  }
+
+  .simple-keyboard .hg-button {
+    font-size: 0.85rem;
+    height: 2.4rem;
+    margin: 2px;
+  }
+}
 
 
+.glassy-theme .hg-button {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  color: var(--foreground);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.glassy-theme .hg-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.glassy-theme .key-active {
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(0.97);
+}
+
+.glassy-theme .hg-button[data-skbtn="{enter}"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+}

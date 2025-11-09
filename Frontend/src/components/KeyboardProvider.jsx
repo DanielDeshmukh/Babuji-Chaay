@@ -8,9 +8,8 @@ import React, {
   useContext,
   useCallback,
 } from "react";
-import VirtualKeyboard from "./VirtualKeyboard"; // We will create this next
+import VirtualKeyboard from "./VirtualKeyboard";
 
-// Define the different layouts
 const defaultLayout = {
   default: [
     "` 1 2 3 4 5 6 7 8 9 0 - = {bksp}",
@@ -32,85 +31,86 @@ const numberLayout = {
   default: ["7 8 9", "4 5 6", "1 2 3", "0 . {bksp}"],
 };
 
-// 1. Create the context
 const KeyboardContext = createContext({
   activeInput: null,
   setActiveInput: () => {},
-  keyboardRef: null, // To pass the keyboard's wrapper ref
+  keyboardRef: null,
 });
 
-// 2. Create a helper hook (optional but clean)
 export const useKeyboard = () => useContext(KeyboardContext);
 
-// 3. Create the Provider component
 export const KeyboardProvider = ({ children }) => {
-  const [activeInput, setActiveInput] = useState(null); // The DOM element
+  const [activeInput, setActiveInput] = useState(null);
   const [layoutConfig, setLayoutConfig] = useState(defaultLayout);
-  const keyboardWrapperRef = useRef(null); // Ref for the keyboard's wrapper div
+  const keyboardWrapperRef = useRef(null);
 
   const handleClose = useCallback(() => {
-    if (activeInput) {
-      activeInput.blur(); // Remove focus from the input
-    }
+    if (activeInput) activeInput.blur();
     setActiveInput(null);
   }, [activeInput]);
 
   useEffect(() => {
     const handleFocusIn = (e) => {
       const target = e.target;
-      // Check if it's an input/textarea and doesn't have 'data-no-keyboard'
-      if (
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA") &&
-        !target.hasAttribute("data-no-keyboard")
-      ) {
-        setActiveInput(target);
 
-        // Check input type to set layout
-        const inputType = target.type;
-        const inputMode = target.inputMode;
-        if (
-          inputType === "number" ||
-          inputType === "tel" ||
-          inputMode === "numeric" ||
-          inputMode === "decimal"
-        ) {
-          setLayoutConfig(numberLayout);
-        } else {
-          setLayoutConfig(defaultLayout);
-        }
+      if (!(target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+
+      if (target.hasAttribute("data-no-keyboard")) return;
+
+      // 🚫 Skip calendar/date-like inputs
+      const skipTypes = ["date", "datetime-local", "month", "time", "week"];
+      if (skipTypes.includes(target.type)) return;
+
+      setActiveInput(target);
+
+      const inputType = target.type;
+      const inputMode = target.inputMode;
+      if (
+        inputType === "number" ||
+        inputType === "tel" ||
+        inputMode === "numeric" ||
+        inputMode === "decimal"
+      ) {
+        setLayoutConfig(numberLayout);
+      } else {
+        setLayoutConfig(defaultLayout);
       }
     };
 
-    const handleFocusOut = (e) => {
-      // Delay to see if focus moves to another input or the keyboard
+    const handleFocusOut = () => {
       setTimeout(() => {
-        const newActiveElement = document.activeElement;
-        // If the new active element is not an input, close the keyboard
+        const newActive = document.activeElement;
         if (
-          newActiveElement.tagName !== "INPUT" &&
-          newActiveElement.tagName !== "TEXTAREA"
+          !keyboardWrapperRef.current?.contains(newActive) &&
+          newActive.tagName !== "INPUT" &&
+          newActive.tagName !== "TEXTAREA"
         ) {
-          // Check if the new active element is *inside* the keyboard
-          if (
-            !keyboardWrapperRef.current ||
-            !keyboardWrapperRef.current.contains(newActiveElement)
-          ) {
-            setActiveInput(null);
-          }
+          setActiveInput(null);
         }
-      }, 100); // 100ms delay
+      }, 100);
     };
 
-    // Add global event listeners
     document.addEventListener("focusin", handleFocusIn);
     document.addEventListener("focusout", handleFocusOut);
 
-    // Cleanup
+    // 🧩 Prevent blur when clicking inside keyboard
+    const handleGlobalMouseDown = (e) => {
+      if (
+        keyboardWrapperRef.current &&
+        keyboardWrapperRef.current.contains(e.target)
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener("mousedown", handleGlobalMouseDown, true);
+
     return () => {
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("focusout", handleFocusOut);
+      document.removeEventListener("mousedown", handleGlobalMouseDown, true);
     };
-  }, []); // Run only once
+  }, []);
 
   return (
     <KeyboardContext.Provider
@@ -121,7 +121,7 @@ export const KeyboardProvider = ({ children }) => {
         activeInput={activeInput}
         onClose={handleClose}
         layoutConfig={layoutConfig}
-        ref={keyboardWrapperRef} // Pass the ref to the component
+        ref={keyboardWrapperRef}
       />
     </KeyboardContext.Provider>
   );

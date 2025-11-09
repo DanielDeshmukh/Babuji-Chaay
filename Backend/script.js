@@ -1,8 +1,13 @@
-// app.js
+// script.js
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import reportRoutes from "./routes/reportRoutes.js";
+import transactionRoutes from "./routes/transactionRoutes.js";
+
+
+
+import { pool } from "./db/neonClient.js";
 
 dotenv.config();
 
@@ -34,6 +39,19 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/reports", reportRoutes);
+app.use("/api/transactions", transactionRoutes);
+
+
+app.get("/api/db-test", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT NOW()");
+    res.json({ connected: true, time: result.rows[0].now });
+  } catch (err) {
+    console.error("❌ Database connection error:", err.message);
+    res.status(500).json({ connected: false, error: err.message });
+  }
+});
+
 
 // --- 404 HANDLER --- //
 app.use((req, res) => {

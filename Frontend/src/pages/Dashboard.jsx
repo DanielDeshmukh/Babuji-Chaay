@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useMemo } from "react"
-import { TrendingUp, Users, DollarSign, ShoppingCart } from "lucide-react"
-import DatePicker from "react-datepicker"
-import "react-datepicker/dist/react-datepicker.css"
+import React, { useState, useEffect, useMemo, forwardRef } from "react";
+import { TrendingUp, Users, DollarSign, ShoppingCart, Receipt } from "lucide-react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import {
   Area,
   AreaChart,
@@ -11,12 +11,11 @@ import {
   XAxis,
   ResponsiveContainer,
   Tooltip,
-} from "recharts"
+} from "recharts";
 
-import Header from "../components/Header"
-import Footer from "../components/Footer"
-import supabase from "../lib/supabaseClient"
-
+import Header from "../components/Header";
+import Footer from "../components/Footer";
+import supabase from "../lib/supabaseClient";
 import {
   Card,
   CardContent,
@@ -24,93 +23,59 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "../components/ui/card"
+} from "../components/ui/card";
 
-const VISIBLE_POINTS = 7
+const VISIBLE_POINTS = 7;
 
-function CircularMeter({ value = 76, label = "Task Progress", small = false }) {
-  const size = small ? 120 : 160
-  const stroke = small ? 10 : 14
-  const radius = (size - stroke) / 2
-  const circumference = 2 * Math.PI * radius
-  const offset = circumference - (value / 100) * circumference
-
-  return (
-    <div className="flex flex-col items-center justify-center gap-2">
-      <svg width={size} height={size} className="transform -rotate-90">
-        <defs>
-          <linearGradient id="gradA" x1="0%" x2="100%">
-            <stop offset="0%" stopColor="var(--accent)" />
-            <stop offset="100%" stopColor="var(--secondary)" />
-          </linearGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="6" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="var(--border)"
-          strokeWidth={stroke}
-          fill="transparent"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="url(#gradA)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={offset}
-          fill="transparent"
-          style={{ filter: "url(#glow)" }}
-        />
-      </svg>
-
-      <div className="flex flex-col items-center">
-        <div className="text-lg font-semibold text-foreground">{value}%</div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-      </div>
-    </div>
-  )
-}
+const NoKeyboardInput = forwardRef(({ value, onClick, placeholder, className }, ref) => (
+  <input
+    ref={ref}
+    value={value || ""}
+    onClick={(e) => {
+      e.preventDefault();
+      onClick?.(e);
+    }}
+    onFocus={(e) => e.target.blur()}
+    readOnly
+    data-no-keyboard
+    placeholder={placeholder}
+    className={className}
+  />
+));
 
 const formatCurrency = (v) =>
-  typeof v === "number" ? `₹${v.toLocaleString()}` : v
+  typeof v === "number" ? `₹${v.toLocaleString("en-IN")}` : v;
 
 function Dashboard() {
-  const [data, setData] = useState([])
-  const [hasData, setHasData] = useState(true)
-  const [loadingReport, setLoadingReport] = useState(false)
-  const [showReportOptions, setShowReportOptions] = useState(false)
-  const [startDate, setStartDate] = useState(null)
-  const [endDate, setEndDate] = useState(null)
-  const [specificDate, setSpecificDate] = useState(null)
-  const [visibleSeries, setVisibleSeries] = useState({
-    sales: true,
-    loss: false,
-    dump: false,
-  })
+  const [data, setData] = useState([]);
+  const [kpis, setKpis] = useState([]);
+  const [hasData, setHasData] = useState(true);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [showReportOptions, setShowReportOptions] = useState(false);
+  const [showTransactionOptions, setShowTransactionOptions] = useState(false);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [specificDate, setSpecificDate] = useState(null);
 
-  // Fetch daily summary from Supabase
+  const datePickerClassName =
+    "px-3 py-2 rounded-md bg-card text-card-foreground placeholder-muted-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-300";
+
+  // Helper
+  const formatLocalDate = (date) => date.toLocaleDateString("en-CA"); // YYYY-MM-DD
+
+  // Fetch chart data
   useEffect(() => {
     const fetchSummary = async () => {
       try {
         const { data: rows, error } = await supabase
           .from("daily_sales_summary")
           .select("sales_date, total_sales, total_loss, total_dump")
-          .order("sales_date", { ascending: true })
+          .order("sales_date", { ascending: true });
 
-        if (error) throw error
+        if (error) throw error;
         if (!rows?.length) {
-          setHasData(false)
-          return
+          setHasData(false);
+          return;
         }
 
         const formatted = rows.map((r) => ({
@@ -121,96 +86,173 @@ function Dashboard() {
           sales: r.total_sales,
           loss: r.total_loss,
           dump: r.total_dump,
-        }))
+        }));
 
-        setData(formatted)
-        setHasData(true)
+        setData(formatted);
+        setHasData(true);
       } catch (err) {
-        console.error("Error fetching summary:", err)
-        setHasData(false)
+        console.error("Error fetching summary:", err);
+        setHasData(false);
       }
-    }
+    };
 
-    fetchSummary()
-  }, [])
+    fetchSummary();
+  }, []);
 
-  // 🧾 Generate PDF report from Express backend
+  // Fetch live KPI metrics
+  useEffect(() => {
+    const fetchKPIs = async () => {
+      try {
+        const today = new Date();
+        const start = startDate ? formatLocalDate(startDate) : formatLocalDate(today);
+        const end = endDate ? formatLocalDate(endDate) : formatLocalDate(today);
+
+        // Fetch daily summary totals
+        const { data: summaryData, error: summaryErr } = await supabase
+          .from("daily_sales_summary")
+          .select("total_sales, total_loss, total_dump, sales_date")
+          .gte("sales_date", start)
+          .lte("sales_date", end);
+
+        if (summaryErr) throw summaryErr;
+
+        const totalIncome = summaryData.reduce(
+          (sum, r) => sum + Number(r.total_sales || 0),
+          0
+        );
+        const totalExpenses = summaryData.reduce(
+          (sum, r) => sum + Number(r.total_loss || 0) + Number(r.total_dump || 0),
+          0
+        );
+
+        // Fetch total orders (transactions)
+        const { data: txData, error: txErr } = await supabase
+          .from("transactions")
+          .select("id", { count: "exact" })
+          .gte("created_at", `${start}T00:00:00+05:30`)
+          .lte("created_at", `${end}T23:59:59+05:30`);
+
+        if (txErr) throw txErr;
+        const totalOrders = txData?.length || 0;
+
+        // Fetch previous day's data for growth comparison
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        const { data: prevData } = await supabase
+          .from("daily_sales_summary")
+          .select("total_sales")
+          .eq("sales_date", formatLocalDate(yesterday))
+          .single();
+
+        const growth =
+          prevData && prevData.total_sales
+            ? (((totalIncome - prevData.total_sales) / prevData.total_sales) * 100).toFixed(1)
+            : "0.0";
+
+        setKpis([
+          {
+            title: "Income",
+            value: totalIncome,
+            delta: growth + "%",
+            icon: DollarSign,
+            color: "var(--accent)",
+          },
+          {
+            title: "Orders",
+            value: totalOrders,
+            delta: "+",
+            icon: ShoppingCart,
+            color: "var(--secondary)",
+          },
+          {
+            title: "Expenses",
+            value: totalExpenses,
+            delta: "-",
+            icon: Users,
+            color: "var(--secondary-foreground)",
+          },
+          {
+            title: "Growth",
+            value: growth + "%",
+            delta: growth >= 0 ? "↑" : "↓",
+            icon: TrendingUp,
+            color: "var(--primary)",
+          },
+        ]);
+      } catch (err) {
+        console.error("Error fetching KPIs:", err);
+      }
+    };
+
+    fetchKPIs();
+  }, [startDate, endDate]);
+
   const downloadReport = async (type) => {
     try {
-      setLoadingReport(true)
-
-      let query = ""
+      setLoadingReport(true);
+      let query = "";
       if (type === "range" && startDate && endDate) {
-        query = `?start=${startDate.toISOString().split("T")[0]}&end=${endDate
-          .toISOString()
-          .split("T")[0]}`
+        query = `?start=${formatLocalDate(startDate)}&end=${formatLocalDate(endDate)}`;
       } else if (type === "specific" && specificDate) {
-        const d = specificDate.toISOString().split("T")[0]
-        query = `?start=${d}&end=${d}`
+        const d = formatLocalDate(specificDate);
+        query = `?start=${d}&end=${d}`;
       } else if (type === "daily") {
-        const today = new Date().toISOString().split("T")[0]
-        query = `?start=${today}&end=${today}`
+        const today = formatLocalDate(new Date());
+        query = `?start=${today}&end=${today}`;
       }
 
-      const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/api/reports/generate${query}`
-      )
-
-      if (!response.ok) throw new Error("Failed to generate report")
-
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `sales_report_${type}.pdf`
-      a.click()
-      window.URL.revokeObjectURL(url)
-
-      setShowReportOptions(false)
-      setSpecificDate(null)
-      setStartDate(null)
-      setEndDate(null)
+      const url = `${import.meta.env.VITE_BACKEND_URL}/api/reports/generate${query}`;
+      window.open(url, "_blank");
+      setShowReportOptions(false);
     } catch (err) {
-      console.error("Report download failed:", err)
-      alert("Failed to generate report.")
+      console.error("Report open failed:", err);
+      alert("Failed to open report.");
     } finally {
-      setLoadingReport(false)
+      setLoadingReport(false);
     }
-  }
+  };
 
-  const kpis = useMemo(
-    () => [
-      {
-        title: "Income",
-        value: 40000,
-        delta: "15%",
-        icon: DollarSign,
-        color: "var(--accent)",
-      },
-      {
-        title: "Orders",
-        value: 20000,
-        delta: "12%",
-        icon: ShoppingCart,
-        color: "var(--secondary)",
-      },
-      {
-        title: "Expenses",
-        value: 5000,
-        delta: "-2%",
-        icon: Users,
-        color: "var(--secondary-foreground)",
-      },
-      {
-        title: "Growth",
-        value: "5.2%",
-        delta: "↑",
-        icon: TrendingUp,
-        color: "var(--primary)",
-      },
-    ],
-    []
-  )
+const viewTransactions = async (type) => {
+  try {
+    setLoadingReport(true);
+    let url = "";
+
+    // ✅ Build URL based on type
+    if (type === "range" && startDate && endDate) {
+      // Show all transactions within range using /api/transactions
+      const start = formatLocalDate(startDate);
+      const end = formatLocalDate(endDate);
+      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions?start=${start}&end=${end}`;
+    } else if (type === "specific" && specificDate) {
+      // Specific date = same start and end
+      const d = formatLocalDate(specificDate);
+      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions?start=${d}&end=${d}`;
+    } else if (type === "daily") {
+      // Today’s transactions
+      const today = formatLocalDate(new Date());
+      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions?start=${today}&end=${today}`;
+    } else if (type === "invoice" && selectedDailyBillNo) {
+      // Open a single invoice using daily_bill_no
+      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions/daily/${selectedDailyBillNo}/invoice`;
+    } else {
+      // Default fallback: view all
+      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions`;
+    }
+
+    // ✅ Open in new tab
+    window.open(url, "_blank");
+
+    // Hide transaction options after action
+    setShowTransactionOptions(false);
+  } catch (err) {
+    console.error("Transaction view failed:", err);
+    alert("Failed to view transactions.");
+  } finally {
+    setLoadingReport(false);
+  }
+};
+
+
 
   const visibleData = data.length
     ? data.slice(-VISIBLE_POINTS)
@@ -219,10 +261,7 @@ function Dashboard() {
         sales: Math.round(200 + Math.sin(i / 2) * 40 + i * 10),
         loss: Math.round(80 + Math.cos(i / 3) * 20),
         dump: Math.round(30 + (i % 3) * 10),
-      }))
-
-  const datePickerClassName =
-    "px-3 py-2 rounded-md bg-card text-card-foreground placeholder-muted-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-300"
+      }));
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
@@ -232,88 +271,53 @@ function Dashboard() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
+            <h1 className="text-2xl font-semibold">Dashboard</h1>
             <div className="px-3 py-1 rounded-md text-sm bg-muted text-muted-foreground">
               Overview
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-muted-foreground">Sales Reports</div>
-            <button
-              onClick={() => setShowReportOptions(!showReportOptions)}
-              className="px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
-            >
-              {showReportOptions ? "Close" : "Export"}
-            </button>
           </div>
         </div>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
           {kpis.map((kpi) => {
-            const Icon = kpi.icon
+            const Icon = kpi.icon;
             return (
               <div
                 key={kpi.title}
-                className="relative rounded-xl p-4 bg-card border border-border shadow-xl transition-colors duration-300"
+                className="rounded-xl p-4 bg-card border border-border shadow-xl transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-sm text-muted-foreground">
-                      {kpi.title}
-                    </div>
+                    <div className="text-sm text-muted-foreground">{kpi.title}</div>
                     <div className="mt-1 text-2xl font-bold text-card-foreground">
                       {formatCurrency(kpi.value)}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      {kpi.delta} vs last month
+                      {kpi.delta} vs last period
                     </div>
                   </div>
-                  <div
-                    className="flex items-center justify-center rounded-md h-10 w-10"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))",
-                    }}
-                  >
-                    <Icon className="h-5 w-5" style={{ color: kpi.color }} />
-                  </div>
+                  <Icon className="h-6 w-6" style={{ color: kpi.color }} />
                 </div>
               </div>
-            )
+            );
           })}
         </div>
 
-        {/* Chart + Reports section */}
+        {/* Chart + Reports + Transactions */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Chart */}
           <div className="lg:col-span-2 space-y-6">
-            <Card className="rounded-2xl bg-card backdrop-blur-md border border-border shadow-xl">
+            <Card className="rounded-2xl bg-card border border-border shadow-xl">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg text-card-foreground">
-                      Earnings
-                    </CardTitle>
-                    <CardDescription className="text-muted-foreground">
-                      This week vs last week
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm text-muted-foreground">
-                      Last {VISIBLE_POINTS} days
-                    </div>
-                  </div>
-                </div>
+                <CardTitle>Earnings</CardTitle>
+                <CardDescription>This week vs last week</CardDescription>
               </CardHeader>
 
-              <CardContent className="p-4">
-                <div style={{ height: 320 }} className="w-full">
+              <CardContent>
+                <div style={{ height: 320 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={visibleData}
-                      margin={{ left: 12, right: 12, top: 10, bottom: 10 }}
-                    >
+                    <AreaChart data={visibleData}>
                       <CartesianGrid vertical={false} stroke="var(--border)" />
                       <XAxis
                         dataKey="date"
@@ -330,60 +334,40 @@ function Dashboard() {
                       />
                       <defs>
                         <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop
-                            offset="0%"
-                            stopColor="var(--primary)"
-                            stopOpacity={0.3}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="var(--primary)"
-                            stopOpacity={0}
-                          />
+                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      {visibleSeries.sales && (
-                        <Area
-                          type="monotone"
-                          dataKey="sales"
-                          stroke="var(--primary)"
-                          strokeWidth={1.5}
-                          fill="url(#salesGradient)"
-                          activeDot={{
-                            r: 5,
-                            stroke: "var(--foreground)",
-                            strokeWidth: 2,
-                          }}
-                        />
-                      )}
+                      <Area
+                        type="monotone"
+                        dataKey="sales"
+                        stroke="var(--primary)"
+                        strokeWidth={1.5}
+                        fill="url(#salesGradient)"
+                        activeDot={{
+                          r: 5,
+                          stroke: "var(--foreground)",
+                          strokeWidth: 2,
+                        }}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
               </CardContent>
 
-              <CardFooter className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Trending up by 5.2% this month
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Past {VISIBLE_POINTS} days
-                </div>
+              <CardFooter className="text-sm text-muted-foreground">
+                Trending up by {kpis[3]?.value || "0%"} this period
               </CardFooter>
             </Card>
           </div>
 
-          {/* Reports Section */}
+          {/* Reports + Transactions */}
           <div className="space-y-6">
+            {/* Reports */}
             <Card className="rounded-2xl bg-card border border-border shadow-xl p-4">
-              <CardHeader>
-                <div className="flex items-center justify-between w-full">
-                  <CardTitle className="text-card-foreground text-base">
-                    Reports
-                  </CardTitle>
-                  <CardDescription className="text-muted-foreground">
-                    Export PDFs
-                  </CardDescription>
-                </div>
+              <CardHeader className="flex items-center justify-between">
+                <CardTitle>Reports</CardTitle>
+                <CardDescription>Export PDFs</CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-3">
@@ -393,44 +377,41 @@ function Dashboard() {
                     onClick={() => setShowReportOptions(true)}
                     disabled={loadingReport}
                   >
-                    {loadingReport ? "Generating..." : "Download Report"}
+                    {loadingReport ? "Generating..." : "View Report"}
                   </button>
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {/* Daily and Specific */}
-                    <div className="flex gap-2 flex-wrap">
+                  <>
+                    <div className="flex flex-wrap gap-2">
                       <button
-                        className="px-3 py-2 rounded-md bg-card text-card-foreground"
+                        className="px-3 py-2 rounded-md bg-card border border-border"
                         onClick={() => downloadReport("daily")}
-                        disabled={loadingReport}
                       >
-                        Daily Report
+                        Daily
                       </button>
                       <DatePicker
                         selected={specificDate}
                         onChange={setSpecificDate}
-                        placeholderText="Select Day"
-                        className={datePickerClassName}
+                        placeholderText="Specific Day"
+                        customInput={<NoKeyboardInput className={datePickerClassName} />}
                       />
                       <button
                         className="px-3 py-2 rounded-md bg-primary text-primary-foreground"
                         onClick={() => downloadReport("specific")}
-                        disabled={!specificDate || loadingReport}
+                        disabled={!specificDate}
                       >
-                        Specific Day
+                        Specific
                       </button>
                     </div>
 
-                    {/* Range */}
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex flex-wrap gap-2">
                       <DatePicker
                         selected={startDate}
                         onChange={setStartDate}
                         selectsStart
                         startDate={startDate}
                         endDate={endDate}
-                        placeholderText="Start Date"
-                        className={datePickerClassName}
+                        placeholderText="Start"
+                        customInput={<NoKeyboardInput className={datePickerClassName} />}
                       />
                       <DatePicker
                         selected={endDate}
@@ -439,15 +420,15 @@ function Dashboard() {
                         startDate={startDate}
                         endDate={endDate}
                         minDate={startDate}
-                        placeholderText="End Date"
-                        className={datePickerClassName}
+                        placeholderText="End"
+                        customInput={<NoKeyboardInput className={datePickerClassName} />}
                       />
                       <button
                         className="px-3 py-2 rounded-md bg-secondary text-secondary-foreground"
                         onClick={() => downloadReport("range")}
-                        disabled={!startDate || !endDate || loadingReport}
+                        disabled={!startDate || !endDate}
                       >
-                        Range Report
+                        Range
                       </button>
                     </div>
 
@@ -457,7 +438,90 @@ function Dashboard() {
                     >
                       Cancel
                     </button>
-                  </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Transactions */}
+            <Card className="rounded-2xl bg-card border border-border shadow-xl p-4">
+              <CardHeader className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-primary" />
+                  Transactions
+                </CardTitle>
+                <CardDescription>View or Export</CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                {!showTransactionOptions ? (
+                  <button
+                    className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
+                    onClick={() => setShowTransactionOptions(true)}
+                    disabled={loadingReport}
+                  >
+                    {loadingReport ? "Loading..." : "View Transactions"}
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="px-3 py-2 rounded-md bg-card border border-border"
+                        onClick={() => viewTransactions("daily")}
+                      >
+                        Daily
+                      </button>
+                      <DatePicker
+                        selected={specificDate}
+                        onChange={setSpecificDate}
+                        placeholderText="Specific Day"
+                        customInput={<NoKeyboardInput className={datePickerClassName} />}
+                      />
+                      <button
+                        className="px-3 py-2 rounded-md bg-primary text-primary-foreground"
+                        onClick={() => viewTransactions("specific")}
+                        disabled={!specificDate}
+                      >
+                        Specific
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <DatePicker
+                        selected={startDate}
+                        onChange={setStartDate}
+                        selectsStart
+                        startDate={startDate}
+                        endDate={endDate}
+                        placeholderText="Start"
+                        customInput={<NoKeyboardInput className={datePickerClassName} />}
+                      />
+                      <DatePicker
+                        selected={endDate}
+                        onChange={setEndDate}
+                        selectsEnd
+                        startDate={startDate}
+                        endDate={endDate}
+                        minDate={startDate}
+                        placeholderText="End"
+                        customInput={<NoKeyboardInput className={datePickerClassName} />}
+                      />
+                      <button
+                        className="px-3 py-2 rounded-md bg-secondary text-secondary-foreground"
+                        onClick={() => viewTransactions("range")}
+                        disabled={!startDate || !endDate}
+                      >
+                        Range
+                      </button>
+                    </div>
+
+                    <button
+                      className="px-3 py-2 rounded-md bg-muted text-muted-foreground"
+                      onClick={() => setShowTransactionOptions(false)}
+                    >
+                      Cancel
+                    </button>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -467,7 +531,7 @@ function Dashboard() {
 
       <Footer />
     </div>
-  )
+  );
 }
 
 export default Dashboard

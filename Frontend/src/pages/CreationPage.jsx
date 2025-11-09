@@ -1,6 +1,8 @@
 import React from "react";
 import Header from "../components/Header";
 import SpecialNumber from "../components/SpecialNumber";
+import InventoryManager from "@/components/InventoryManager";
+import OfferManager from "@/components/OfferManager";
 
 const CreationPage = () => {
   return (
@@ -16,8 +18,14 @@ const CreationPage = () => {
           </h1>
 
           {/* Component for creating special number */}
-          <div className="bg-white shadow-lg rounded-2xl p-6 sm:p-8 border-[#E5E7EB]">
+          <div className="bg-white shadow-lg my-1 rounded-2xl p-6 sm:p-8 border-[#E5E7EB]">
             <SpecialNumber />
+          </div>
+          <div className="bg-white shadow-lg rounded-2xl my-1 p-6 sm:p-8 border-[#E5E7EB]">
+            <InventoryManager />
+          </div>
+          <div className="bg-white shadow-lg rounded-2xl my-1 p-6 sm:p-8 border-[#E5E7EB]">
+            <OfferManager/>
           </div>
         </div>
       </main>

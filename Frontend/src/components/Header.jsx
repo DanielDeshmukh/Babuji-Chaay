@@ -1,4 +1,5 @@
-import { Bell, User, Menu as MenuIcon, X } from "lucide-react";
+import {User, Menu as MenuIcon, X } from "lucide-react";
+import { IoSettingsOutline } from "react-icons/io5";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import supabase from "../lib/supabaseClient";
@@ -27,6 +28,9 @@ const Header = () => {
       console.error("Avatar fetch error:", error.message);
     }
   };
+  const handleSetttingsClick = () => {
+    navigate("/settings");
+  }
 
   useEffect(() => {
     // A listener to refetch avatar if profile changes (e.g., after update)
@@ -78,7 +82,7 @@ const Header = () => {
           </NavLink>
 
           <nav className="hidden md:flex space-x-6 lg:space-x-8">
-            <NavLink to="/dashboard" className={linkClasses}>
+            <NavLink to="/home" className={linkClasses}>
               Dashboard
             </NavLink>
             <NavLink to="/inventory" className={linkClasses}>
@@ -99,7 +103,7 @@ const Header = () => {
 
           <div className="flex items-center space-x-3 sm:space-x-4">
             {/* Replaced hardcoded text/hover with theme classes */}
-            <Bell className="w-5 h-5 text-foreground hover:text-primary cursor-pointer transition-colors" />
+            < IoSettingsOutline className="w-5 h-5 text-foreground hover:text-primary cursor-pointer transition-colors" onClick={handleSetttingsClick}/>
             <NavLink
               to="/profile"
               // Replaced hardcoded ring color with primary
@@ -136,7 +140,7 @@ const Header = () => {
           // Replaced bg-black/60 and border-white/10 with theme-aware classes
           <nav className="md:hidden bg-background/90 backdrop-blur-sm border-t border-border shadow-xl px-6 py-4 flex flex-col space-y-3">
             <NavLink
-              to="/dashboard"
+              to="/home"
               className={linkClasses}
               onClick={() => setMobileOpen(false)}
             >
