@@ -15,7 +15,7 @@ import {
 
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import supabase from "../lib/supabaseClient";
+import supabase from "@/lib/supabaseClient";
 import {
   Card,
   CardContent,
@@ -217,32 +217,24 @@ const viewTransactions = async (type) => {
     setLoadingReport(true);
     let url = "";
 
-    // ✅ Build URL based on type
     if (type === "range" && startDate && endDate) {
-      // Show all transactions within range using /api/transactions
       const start = formatLocalDate(startDate);
       const end = formatLocalDate(endDate);
       url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions?start=${start}&end=${end}`;
     } else if (type === "specific" && specificDate) {
-      // Specific date = same start and end
       const d = formatLocalDate(specificDate);
       url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions?start=${d}&end=${d}`;
     } else if (type === "daily") {
-      // Today’s transactions
       const today = formatLocalDate(new Date());
       url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions?start=${today}&end=${today}`;
     } else if (type === "invoice" && selectedDailyBillNo) {
-      // Open a single invoice using daily_bill_no
       url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions/daily/${selectedDailyBillNo}/invoice`;
     } else {
-      // Default fallback: view all
       url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions`;
     }
 
-    // ✅ Open in new tab
     window.open(url, "_blank");
 
-    // Hide transaction options after action
     setShowTransactionOptions(false);
   } catch (err) {
     console.error("Transaction view failed:", err);
@@ -268,7 +260,6 @@ const viewTransactions = async (type) => {
       <Header />
 
       <main className="flex-1 p-6">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-semibold">Dashboard</h1>
@@ -278,7 +269,6 @@ const viewTransactions = async (type) => {
           </div>
         </div>
 
-        {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
           {kpis.map((kpi) => {
             const Icon = kpi.icon;
@@ -304,9 +294,7 @@ const viewTransactions = async (type) => {
           })}
         </div>
 
-        {/* Chart + Reports + Transactions */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Chart */}
           <div className="lg:col-span-2 space-y-6">
             <Card className="rounded-2xl bg-card border border-border shadow-xl">
               <CardHeader>
@@ -361,9 +349,7 @@ const viewTransactions = async (type) => {
             </Card>
           </div>
 
-          {/* Reports + Transactions */}
           <div className="space-y-6">
-            {/* Reports */}
             <Card className="rounded-2xl bg-card border border-border shadow-xl p-4">
               <CardHeader className="flex items-center justify-between">
                 <CardTitle>Reports</CardTitle>
@@ -443,7 +429,6 @@ const viewTransactions = async (type) => {
               </CardContent>
             </Card>
 
-            {/* Transactions */}
             <Card className="rounded-2xl bg-card border border-border shadow-xl p-4">
               <CardHeader className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">

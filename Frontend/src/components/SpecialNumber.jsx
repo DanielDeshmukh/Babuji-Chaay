@@ -1,106 +1,223 @@
-import React, { useState, useEffect } from "react";
-import supabase from "../lib/supabaseClient";
+"use client";
 
-const SpecialNumber = () => {
-  const [specialNumber, setSpecialNumber] = useState(null);
+import React, { useEffect, useState, useCallback } from "react";
+import supabase from "@/lib/supabaseClient";
+
+/**
+ * Refactored SpecialNumber component.
+ * - Waits for session restoration before any REST calls (prevents 406)
+ * - Uses a single auth listener + sessionReady flag
+ * - Defensive error handling and loading UX
+ * - Uses maybeSingle() to avoid throwing when row missing
+ * - Ensures user_id sent on upsert matches session user id
+ */
+
+export default function SpecialNumber() {
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionUserId, setSessionUserId] = useState(null);
+
+  const [specialNumber, setSpecialNumber] = useState("");
   const [todayNumber, setTodayNumber] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fetchingToday, setFetchingToday] = useState(false);
+  const [error, setError] = useState(null);
 
   const getTodayDate = () => new Date().toISOString().split("T")[0];
 
+  // --------------------------------------------------------------------
+  // 1) Restore session once and listen to changes
+  // --------------------------------------------------------------------
   useEffect(() => {
-    const fetchTodayNumber = async () => {
-      const today = getTodayDate();
+    let mounted = true;
 
-      const { data, error } = await supabase
-        .from("special_numbers")
-        .select("number")
-        .eq("date", today)
-        .maybeSingle();
+    const start = async () => {
+      try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
 
-      if (!error && data) {
-        setTodayNumber(data.number);
+        if (!mounted) return;
+
+        if (session?.user?.id) {
+          setSessionUserId(session.user.id);
+          setSessionReady(true);
+        } else {
+          setSessionUserId(null);
+          setSessionReady(false);
+        }
+      } catch (err) {
+        console.error("session restore failed", err);
       }
     };
 
-    fetchTodayNumber();
+    start();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.id) {
+        setSessionUserId(session.user.id);
+        setSessionReady(true);
+      } else {
+        setSessionUserId(null);
+        setSessionReady(false);
+        setTodayNumber(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      try {
+        listener.subscription.unsubscribe();
+      } catch (e) {
+        // ignore
+      }
+    };
   }, []);
 
-  const handleGenerate = () => {
-    setSpecialNumber(Math.floor(Math.random() * 100) + 1);
-  };
+  // --------------------------------------------------------------------
+  // 2) Fetch today's number WHEN session is ready
+  // --------------------------------------------------------------------
+  const loadTodayNumber = useCallback(async () => {
+    if (!sessionReady || !sessionUserId) return;
 
-  const handleSave = async () => {
-    if (!specialNumber) {
-      alert("Please enter or generate a number first.");
+    setFetchingToday(true);
+    setError(null);
+
+    try {
+      const today = getTodayDate();
+
+      const { data, error: fetchErr } = await supabase
+        .from("special_numbers")
+        .select("number")
+        .eq("date", today)
+        .eq("user_id", sessionUserId)
+        .maybeSingle();
+
+      if (fetchErr) {
+        console.error("Failed to fetch today's special number", fetchErr);
+        setError(fetchErr.message || "Fetch failed");
+        setTodayNumber(null);
+      } else {
+        setTodayNumber(data?.number ?? null);
+      }
+    } catch (err) {
+      console.error("Unexpected error fetching today's number", err);
+      setError(err.message || String(err));
+      setTodayNumber(null);
+    } finally {
+      setFetchingToday(false);
+    }
+  }, [sessionReady, sessionUserId]);
+
+  useEffect(() => {
+    // load when session becomes ready
+    loadTodayNumber();
+  }, [loadTodayNumber]);
+
+  // --------------------------------------------------------------------
+  // 3) Generate random number (1–100)
+  // --------------------------------------------------------------------
+  const handleGenerate = useCallback(() => {
+    setSpecialNumber(Math.floor(Math.random() * 100) + 1);
+  }, []);
+
+  // --------------------------------------------------------------------
+  // 4) Save today's number (upsert)
+  // --------------------------------------------------------------------
+  const handleSave = useCallback(async () => {
+    if (!sessionReady || !sessionUserId) {
+      alert("Please log in before saving a special number.");
+      return;
+    }
+
+    const num = Number(specialNumber);
+
+    if (!num || num < 1 || num > 100) {
+      alert("Please enter or generate a valid number (1–100).");
       return;
     }
 
     setLoading(true);
-    const today = getTodayDate();
+    setError(null);
 
-    const { data, error } = await supabase
-      .from("special_numbers")
-      .upsert([{ number: specialNumber, date: today }], {
-        onConflict: "date",
-      })
-      .select()
-      .single();
+    try {
+      const today = getTodayDate();
 
-    setLoading(false);
+      // Make sure we send user_id from the session (single source of truth)
+      const payload = { number: num, date: today, user_id: sessionUserId };
 
-    if (error) {
-      console.error("Error saving special number:", error.message);
-      alert("Failed to save special number");
-    } else {
-      setTodayNumber(data.number);
-      alert(`Special number set to ${data.number} for ${today}`);
+      const { data, error: upsertErr } = await supabase
+        .from("special_numbers")
+        .upsert([payload], { onConflict: "date,user_id" })
+        .select()
+        .maybeSingle();
+
+      if (upsertErr) {
+        console.error("Upsert failed", upsertErr);
+        setError(upsertErr.message || "Save failed");
+        alert("Failed to save number.");
+        return;
+      }
+
+      // update UI
+      setTodayNumber(data?.number ?? num);
+      setSpecialNumber("");
+      alert(`Special number set to ${data?.number ?? num} for ${today}.`);
+    } catch (err) {
+      console.error("Unexpected save error", err);
+      setError(err.message || String(err));
+      alert("Failed to save number.");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [specialNumber, sessionReady, sessionUserId]);
+
+  // --------------------------------------------------------------------
+  // UI
+  // --------------------------------------------------------------------
+  if (!sessionReady) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <p className="text-foreground text-lg font-medium">Please log in to set your special number.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-4 bg-background rounded-2xl text-foreground transition-colors duration-300">
-      <h2 className="text-xl font-bold  text-foreground">
-        Set Special Number for today
-      </h2>
+    <div className="p-6 max-w-2xl mx-auto space-y-5 bg-background rounded-2xl text-foreground transition-colors duration-300">
+      <h2 className="text-xl font-bold">Set Today’s Special Number</h2>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 space-y-2 sm:space-y-0">
         <input
           type="number"
           min="1"
           max="100"
-          value={specialNumber ?? ""}
-          onChange={(e) => setSpecialNumber(Number(e.target.value))}
+          value={specialNumber}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSpecialNumber(val === "" ? "" : Number(val));
+          }}
           className="w-full sm:w-32 border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition"
           placeholder="Number"
         />
 
-        <button
-          onClick={handleGenerate}
-          className="w-full sm:w-auto bg-secondary text-secondary-foreground font-medium px-4 py-2 rounded-lg hover:bg-secondary/90 transition"
-        >
-          Get Special Number
+        <button onClick={handleGenerate} className="w-full sm:w-auto bg-secondary text-secondary-foreground font-medium px-4 py-2 rounded-lg hover:bg-secondary/90 transition">
+          Random Number
         </button>
 
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="w-full sm:w-auto bg-primary text-primary-foreground font-medium px-4 py-2 rounded-lg hover:bg-primary/90 transition disabled:opacity-50"
-        >
-          {loading ? "Saving..." : "Set Special Number"}
+        <button onClick={handleSave} disabled={loading} className="w-full sm:w-auto bg-primary text-primary-foreground font-medium px-4 py-2 rounded-lg hover:bg-primary/90 transition disabled:opacity-50">
+          {loading ? "Saving..." : "Save Number"}
         </button>
       </div>
 
-      {todayNumber && (
-        <p className="text-foreground font-semibold">
-          Today’s Special Number:{" "}
-          <span className="text-lg font-bold text-accent">
-            {todayNumber}
-          </span>
-        </p>
+      {fetchingToday ? (
+        <p className="text-sm text-muted-foreground">Loading today's number...</p>
+      ) : todayNumber !== null ? (
+        <p className="text-foreground font-semibold">Today's Special Number: <span className="text-lg font-bold text-accent">{todayNumber}</span></p>
+      ) : (
+        <p className="text-sm text-muted-foreground">You haven't set a special number for today yet.</p>
       )}
+
+      {error && <p className="text-red-600">{error}</p>}
     </div>
   );
-};
-
-export default SpecialNumber;
+}

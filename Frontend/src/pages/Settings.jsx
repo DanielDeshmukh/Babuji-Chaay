@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import ExportData from "@/components/ExportData";
 
 const Settings = () => {
   const THEME_KEY = "vite-ui-theme";
@@ -62,6 +63,8 @@ const Settings = () => {
               <option value="dark">Dark</option>
             </select>
           </div>
+          {/* Export Data Section */}
+          <ExportData />
         </div>
       </main>
 

@@ -4,6 +4,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import reportRoutes from "./routes/reportRoutes.js";
 import transactionRoutes from "./routes/transactionRoutes.js";
+import exportRoutes from "./routes/exportRoutes.js";
+import refundRoutes from "./routes/refundRoutes.js";
 
 
 
@@ -40,6 +42,11 @@ app.get("/", (req, res) => {
 
 app.use("/api/reports", reportRoutes);
 app.use("/api/transactions", transactionRoutes);
+app.use('/api/exports', (req, res, next) => {
+    console.log("✅ HITTING /api/exports BASE ROUTE");
+    exportRoutes(req, res, next);
+});
+app.use("/api/refund", refundRoutes);
 
 
 app.get("/api/db-test", async (req, res) => {
