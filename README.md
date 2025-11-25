@@ -1,11 +1,11 @@
-```markdown
-# 🫖 Babuji Chaay  
+
+# Babuji Chaay  
 **Point of Sale & Café Management System**  
 **Developed by:** Daniel Deshmukh & Saurabh Yadav  
 
 ---
 
-## 📘 Overview
+## Overview
 
 **Babuji Chaay** is a full-stack web application serving as an end-to-end **Point of Sale (POS)** and **Inventory Management System** for cafés, tea stalls, and small businesses.  
 It enables seamless billing, real-time inventory management, offer creation, and in-depth analytics — all through an intuitive, touch-friendly interface.
@@ -14,7 +14,7 @@ Built using **React + Tailwind** on the frontend and **Node.js + Supabase** on t
 
 ---
 
-## 🎯 Core Objectives
+## Core Objectives
 
 - Streamline daily billing and transaction workflows  
 - Simplify inventory and product management  
@@ -24,7 +24,7 @@ Built using **React + Tailwind** on the frontend and **Node.js + Supabase** on t
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ### Frontend
 
@@ -72,7 +72,7 @@ The backend follows a modular **MVC structure** — managing business logic, dat
 
 ---
 
-## 🗃️ Database Schema
+## Database Schema
 
 **Supabase** powers authentication and data storage.  
 
@@ -123,7 +123,7 @@ The backend follows a modular **MVC structure** — managing business logic, dat
 
 ---
 
-## 🧰 Tech Stack Summary
+## Tech Stack Summary
 
 | Layer | Technologies |
 |--------|---------------|
@@ -136,7 +136,7 @@ The backend follows a modular **MVC structure** — managing business logic, dat
 
 ---
 
-## 📂 Folder Structure
+## Folder Structure
 
 ```
 
@@ -171,7 +171,7 @@ Babuji-Chaay/
 
 ---
 
-## 🚀 Installation & Setup
+## Installation & Setup
 
 ### Prerequisites
 - Node.js v18+  
@@ -203,7 +203,7 @@ npm run dev
 
 ---
 
-## 🔗 API Endpoints
+## API Endpoints
 
 | Endpoint               | Method | Description                |
 | ---------------------- | ------ | -------------------------- |
@@ -214,7 +214,7 @@ npm run dev
 
 ---
 
-## 👥 Contributors
+## Contributors
 
 | Name                | Role                 | Responsibilities                                             |
 | ------------------- | -------------------- | ------------------------------------------------------------ |
@@ -223,7 +223,4 @@ npm run dev
 
 ---
 
-⭐ *“Babuji Chaay” — Brewing efficiency, one cup at a time.* ☕
 
-```
-```
