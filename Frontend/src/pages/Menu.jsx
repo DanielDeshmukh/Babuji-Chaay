@@ -316,11 +316,13 @@ await supabase.from("billing_items").insert(
   billItems.map((b) => ({
     transaction_id: tx.id,
     menu_item_id: b.menu_item_id,
+    product_id: b.product_id,       // ⭐ REQUIRED
     price: b.price,
     quantity: b.quantity,
-    user_id: user.id   // ⭐ REQUIRED — fixes the 403
+    user_id: user.id
   }))
 );
+
 
 
       alert(`Paid! Bill #${tx.daily_bill_no}`);

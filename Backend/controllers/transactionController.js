@@ -176,8 +176,8 @@ const viewTransactionInvoice = async (req, res) => {
             date: dayjs(txData.created_at).format("DD-MMM-YYYY HH:mm"),
             shopName: "BABUJI CHAAY",
             address:
-                "Babuji Chaay, shop no 5, ground floor, K.D. Empire, Mira Road (E), Thane - 401107",
-            phone: "+91 8552084251",
+                "Babuji Chaay, Shop no. 7,  K.D. Empire, Mira Road (E), Thane - 401107",
+            phone: "+91 9076165666",
             items,
             subtotal,
             discount: Number(txData.discount || 0),
@@ -352,7 +352,7 @@ const viewTransactionInvoice = async (req, res) => {
         // PDF OUTPUT (FIXED)
         // ===========================
         if (format === "pdf") {
-            console.log("🖨️ Generating PDF...");
+            console.log(" Generating PDF...");
             const browser = await puppeteer.launch({
                 headless: "new",
                 args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -365,7 +365,6 @@ const viewTransactionInvoice = async (req, res) => {
             
             const pdf = await page.pdf({
                 width: "80mm", // Standard thermal paper width
-                // 🛑 FIX: Removed height: "auto" which was causing the "Failed to parse parameter value: auto" error
                 printBackground: true,
                 margin: { top: "5mm", bottom: "5mm", left: "2mm", right: "2mm" },
             });
