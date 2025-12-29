@@ -250,97 +250,198 @@ const fetchSpecialNumber = useCallback(async () => {
   /* -------------------------------------------------
      PAYMENT LOGIC
   ---------------------------------------------------*/
-  const handlePayment = async () => {
-    if (billItems.length === 0) return alert("No items.");
+ const handlePayment = async () => {
+  if (billItems.length === 0) return alert("No items.");
 
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      const user = userData?.user;
-      if (!user) throw new Error("Not authenticated.");
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData?.user;
+    if (!user) throw new Error("Not authenticated.");
 
-      const productIds = billItems.map((b) => b.product_id);
-      const productsObj = billItems.map((b) => ({
-        product_id: b.product_id,
-        quantity: b.quantity,
-        price: b.price
-      }));
-
-   const { data: tx, error } = await supabase
+    // -------------------------------
+// STEP 1: CREATE SALE TRANSACTION
+// -------------------------------
+const { data: sale, error: saleError } = await supabase
   .from("transactions")
-  .insert([
-    {
-      user_id: user.id,
-      total_amount: Number((subtotal - totalOfferDiscount).toFixed(2)),
-      discount: Number(totalOfferDiscount.toFixed(2)),
-      cash_paid: Number(cashPaid),
-      upi_paid: Number(upiPaid),
-
-      // FIX: always arrays, never null/undefined
-      product_ids: productIds || [],
-      products: productsObj || [],
-      applied_offer_ids: appliedOfferIds || []
-    }
-  ])
+  .insert({
+    user_id: user.id,
+    transaction_type: "SALE",
+    total_amount: Number((subtotal - totalOfferDiscount).toFixed(2)),
+    discount: Number(totalOfferDiscount.toFixed(2)),
+    cash_paid: Number(cashPaid),
+    upi_paid: Number(upiPaid),
+  })
   .select()
   .single();
 
-
-      if (error) throw error;
-
-      setCurrentBillNumber(tx.daily_bill_no);
-
-      // Special number?
-      const special =
-        todaysSpecialNumber &&
-        tx.daily_bill_no === todaysSpecialNumber;
-
-      if (special) {
-        setSpecialDiscount(true);
-        setIsSpecialActive(true);
-
-        import("canvas-confetti").then(({ default: confetti }) =>
-          confetti({ particleCount: 200, spread: 80 })
-        );
-
-        await supabase
-          .from("transactions")
-          .update({
-            total_amount: 0,
-            discount: Number(subtotal.toFixed(2))
-          })
-          .eq("id", tx.id);
-      }
-
-    // Insert billing items
-await supabase.from("billing_items").insert(
-  billItems.map((b) => ({
-    transaction_id: tx.id,
-    menu_item_id: b.menu_item_id,
-    product_id: b.product_id,       // ⭐ REQUIRED
-    price: b.price,
-    quantity: b.quantity,
-    user_id: user.id
-  }))
-);
+if (saleError) {
+  console.error("SALE INSERT ERROR:", saleError);
+  alert(saleError.message);
+  return;
+}
 
 
+setCurrentBillNumber(sale.daily_bill_no);
 
-      alert(`Paid! Bill #${tx.daily_bill_no}`);
+// ------------------------------------
+// STEP 2: INSERT LINE ITEMS (SOURCE OF TRUTH)
+// ------------------------------------
+const itemsPayload = billItems.map((b) => ({
+  transaction_id: sale.id,
+  product_id: b.product_id,
+  quantity: b.quantity,
+  unit_price: b.price,
+  item_type: "SALE",
+}));
 
-      setTimeout(() => {
-        setBillItems([]);
-        setShowBill(false);
-        setCashPaid(0);
-        setUpiPaid(0);
-        setPendingCashInput("");
-        setSpecialDiscount(false);
-        setCurrentBillNumber(null);
-        setIsSpecialActive(false);
-      }, 1500);
-    } catch (err) {
-      alert(err.message);
+const { error: itemsError } = await supabase
+  .from("transaction_items")
+  .insert(itemsPayload);
+
+if (itemsError) throw itemsError;
+
+
+    setCurrentBillNumber(sale.daily_bill_no);
+
+    const special =
+    todaysSpecialNumber && sale.daily_bill_no === todaysSpecialNumber;
+    if (special) {
+      setSpecialDiscount(true);
+      setIsSpecialActive(true);
+      import("canvas-confetti").then(({ default: confetti }) =>
+        confetti({ particleCount: 200, spread: 80 })
+      );
+
+      await supabase
+        .from("transactions")
+        .update({
+          total_amount: 0,
+          discount: Number(subtotal.toFixed(2)),
+        })
+        .eq("id", sale.id);
+
     }
-  };
+
+
+
+    // --------------------------
+    // PRINT INVOICE
+    // --------------------------
+
+      
+
+
+    const invoiceData = {
+      shopName: "BABUJI CHAAY",
+      address: "Babuji Chaay, Shop no. 7, K.D. Empire, Mira Road (E), Thane - 401107",
+      phone: "+91 9076165666",
+      billNo: sale.daily_bill_no,
+      date: new Date().toLocaleString(),
+      items: billItems.map((b) => ({
+        qty: b.quantity,
+        name: b.name,
+        price: b.price,
+        amt: b.price * b.quantity,
+      })),
+      subtotal,
+      discount: totalOfferDiscount,
+      appliedOffers: appliedOfferNames,
+      cashPaid,
+      upiPaid,
+      total: finalTotal,
+    };
+
+    const printWindow = window.open("", "PRINT", "width=300,height=600");
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>Invoice - ${invoiceData.billNo}</title>
+        <style>
+          body { font-family: monospace; padding: 0; margin: 0; color: #000; background: #fff; max-width: 300px; margin-left: auto; margin-right: auto; }
+          .invoice-container { max-width: 300px; margin: auto; padding: 10px; line-height: 1.4; }
+          h1 { font-size: 16px; text-align: center; margin: 5px 0 2px 0; font-weight: bold; }
+          .header-info { text-align: center; font-size: 10px; border-bottom: 1px dashed #999; padding-bottom: 5px; margin-bottom: 5px; }
+          .bill-meta { font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px dashed #999; padding-bottom: 5px; margin-bottom: 5px; }
+          table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 5px; }
+          th, td { text-align: left; padding: 2px 0; }
+          th { border-bottom: 1px dashed #999; font-weight: bold; }
+          td:nth-child(2) { width: 45%; } 
+          td:last-child { text-align: right; } 
+          td:nth-child(4) { text-align: right; } 
+          .totals { font-size: 11px; border-top: 1px dashed #999; padding-top: 5px; }
+          .totals div { display: flex; justify-content: space-between; margin: 2px 0; }
+          .discount-row { color: #000; font-weight: normal; }
+          .offers-list { font-size: 9px; margin-top: 2px; color: #000; text-align: right; }
+          .total { font-weight: bold; font-size: 12px; border-top: 1px dashed #999; padding-top: 5px; margin-top: 5px !important; }
+          footer { text-align: center; font-size: 10px; margin-top: 10px; font-weight: normal; color: #000; border-top: 1px dashed #999; padding-top: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="invoice-container">
+          <h1>${invoiceData.shopName}</h1>
+          <div class="header-info">
+            ${invoiceData.address}<br>Ph: ${invoiceData.phone}
+          </div>
+          <div class="bill-meta">
+            <span>Bill No: ${invoiceData.billNo}</span>
+            <span>Date: ${invoiceData.date}</span>
+          </div>
+          <table>
+            <thead><tr><th>Qty</th><th>Item</th><th>Price</th><th>Amt</th></tr></thead>
+            <tbody>
+              ${invoiceData.items
+                .map(
+                  (item) =>
+                    `<tr>
+                      <td>${item.qty}</td>
+                      <td>${item.name}</td>
+                      <td>${item.price.toFixed(2)}</td>
+                      <td>${item.amt.toFixed(2)}</td>
+                    </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+          <div class="totals">
+            <div><span>SUBTOTAL</span><span>₹ ${invoiceData.subtotal.toFixed(2)}</span></div>
+            ${
+              invoiceData.discount > 0
+                ? `<div class="discount-row"><span>Discount Deducted</span><span>-₹ ${invoiceData.discount.toFixed(2)}</span></div>
+                   <div class="offers-list">Offers: ${invoiceData.appliedOffers.join(', ') || 'N/A'}</div>`
+                : ""
+            }
+            <div><span>CASH</span><span>₹ ${invoiceData.cashPaid.toFixed(2)}</span></div>
+            <div><span>UPI</span><span>₹ ${invoiceData.upiPaid.toFixed(2)}</span></div>
+            <div class="total"><span>TOTAL PAID</span><span>₹ ${invoiceData.total.toFixed(2)}</span></div>
+          </div>
+          <footer>*** Thank You. Visit Again ***</footer>
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+
+    alert(`Paid! Bill #${sale.daily_bill_no}`);
+
+    setTimeout(() => {
+      setBillItems([]);
+      setShowBill(false);
+      setCashPaid(0);
+      setUpiPaid(0);
+      setPendingCashInput("");
+      setSpecialDiscount(false);
+      setCurrentBillNumber(null);
+      setIsSpecialActive(false);
+    }, 1500);
+  } catch (err) {
+    alert(err.message);
+  }
+};
 
   /* -------------------------------------------------
      INITIAL LOAD + REALTIME

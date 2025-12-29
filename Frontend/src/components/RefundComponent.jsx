@@ -13,16 +13,12 @@ const RefundComponent = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
-  if (!BACKEND_URL) {
-    console.warn("VITE_BACKEND_URL is missing in .env");
-  }
-
   const getRefundQty = (itemId) =>
     selectedRefunds.find((x) => x.billing_item_id === itemId)?.refund_qty || 0;
 
   const fetchBill = async () => {
+    if (loading) return;
+
     setErrorMsg("");
     setSuccessMsg("");
     setSelectedRefunds([]);
@@ -34,36 +30,57 @@ const RefundComponent = () => {
 
     setLoading(true);
 
-    const start = `${billDate}T00:00:00`;
-    const end = `${billDate}T23:59:59`;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    const { data: trx, error: trxErr } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("daily_bill_no", Number(billNo))
-      .gte("created_at", start)
-      .lte("created_at", end)
-      .single();
+      if (!user) {
+        return setErrorMsg("User not authenticated");
+      }
 
-    if (trxErr) {
+      const start = `${billDate}T00:00:00`;
+      const end = `${billDate}T23:59:59`;
+
+      // 1️⃣ Fetch transaction (user-scoped)
+      const { data: trx, error: trxErr } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("daily_bill_no", Number(billNo))
+        .eq("user_id", user.id)
+        .gte("created_at", start)
+        .lte("created_at", end)
+        .single();
+
+      if (trxErr || !trx) {
+        return setErrorMsg("Bill not found for the selected date.");
+      }
+
+      setTransaction(trx);
+
+      // 2️⃣ Fetch SALE items only
+      const { data: items, error: itemsErr } = await supabase
+        .from("transaction_items")
+        .select("id, product_id, quantity, unit_price, products(name)")
+        .eq("transaction_id", trx.id)
+        .eq("item_type", "SALE");
+
+      if (itemsErr || !items || items.length === 0) {
+        return setErrorMsg("No bill items found for this transaction.");
+      }
+
+      const mappedItems = items.map((i) => ({
+        id: i.id,
+        product_id: i.product_id,
+        quantity: Number(i.quantity),
+        price: Number(i.unit_price),
+        products: { name: i.products?.name || "Unnamed Product" },
+      }));
+
+      setBillItems(mappedItems);
+    } finally {
       setLoading(false);
-      return setErrorMsg("Bill not found for the selected date.");
     }
-
-    setTransaction(trx);
-
-    const { data: items, error: itemsErr } = await supabase
-      .from("billing_items")
-      .select("*, products(name)")
-      .eq("transaction_id", trx.id);
-
-    setLoading(false);
-
-    if (itemsErr) {
-      return setErrorMsg("Unable to load bill items.");
-    }
-
-    setBillItems(items);
   };
 
   const updateRefundQty = (itemId, newQty) => {
@@ -92,90 +109,82 @@ const RefundComponent = () => {
 
   const totalRefund = selectedRefunds.reduce((sum, entry) => {
     const item = billItems.find((i) => i.id === entry.billing_item_id);
+    if (!item) return sum;
     return sum + entry.refund_qty * item.price;
   }, 0);
-
-  const downloadReceipt = async (trxId) => {
-    try {
-      const res = await fetch(
-        `${BACKEND_URL}/api/refund/${trxId}/receipt`,
-        {
-          method: "GET",
-        }
-      );
-
-      if (!res.ok) {
-        return setErrorMsg("Refund recorded but failed to download receipt.");
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Refund_Receipt_${trxId}.pdf`;
-
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-
-      window.URL.revokeObjectURL(url);
-    } catch {
-      setErrorMsg("Could not download receipt.");
-    }
-  };
 
   const submitRefund = async () => {
     setErrorMsg("");
     setSuccessMsg("");
 
+    if (!transaction) {
+      return setErrorMsg("No transaction selected.");
+    }
+
     if (selectedRefunds.length === 0) {
-      return setErrorMsg("Please enter at least one refund quantity.");
+      return setErrorMsg("Please select at least one item to refund.");
     }
 
     setLoading(true);
 
-    const payload = {
-      transaction_id: transaction.id,
-      entries: selectedRefunds,
-      mode: "cash",
-      reasons: ["Order cancellation"],
-      other_reason: "",
-    };
-
     try {
-      const response = await fetch(
-        `${BACKEND_URL}/api/refund/record`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+      const entriesToInsert = selectedRefunds.map((entry) => {
+        const item = billItems.find((i) => i.id === entry.billing_item_id);
+
+        if (!item || item.price <= 0) {
+          throw new Error("Invalid refund item detected.");
         }
-      );
 
-      const text = await response.text();
-      let result = {};
+        return {
+          transaction_id: transaction.id,
+          product_id: item.product_id,
+          quantity: entry.refund_qty,
+          unit_price: item.price,
+          price: item.price * entry.refund_qty,
+          item_type: "REFUND",
+        };
+      });
 
-      try {
-        result = JSON.parse(text || "{}");
-      } catch {
-        result.error = text;
-      }
+      const { error } = await supabase
+        .from("transaction_items")
+        .insert(entriesToInsert);
 
-      if (!response.ok) {
-        setLoading(false);
-        return setErrorMsg(result.error || "Refund failed.");
-      }
+      if (error) throw error;
 
-      setSuccessMsg("Refund recorded successfully.");
-      await downloadReceipt(transaction.id);
+      await supabase
+        .from("transactions")
+        .update({
+          refund: entriesToInsert.map((e) => ({
+            product_id: e.product_id,
+            qty: e.quantity,
+            value: e.price,
+          })),
+        })
+        .eq("id", transaction.id);
 
+      const url = `${import.meta.env.VITE_BACKEND_URL}/api/refund/${transaction.id}/receipt`;
+      window.open(url, "_blank");
+
+      setSuccessMsg("Refund processed & receipt printed");
+      setSelectedRefunds([]);
+      setBillItems([]);
+      setTransaction(null);
+      setBillDate("");
+      setBillNo("");
+    } catch (err) {
+      setErrorMsg(err.message || "Refund failed");
+    } finally {
       setLoading(false);
-    } catch {
-      setLoading(false);
-      setErrorMsg("Network or server error.");
     }
   };
+
+  // UI BELOW — UNCHANGED
+  // renderItemRow + JSX kept intact
+
+
+  // UI unchanged below
+  // ⬇️ (renderItemRow + JSX kept intact)
+
 
   const renderItemRow = (item) => {
     const selected = getRefundQty(item.id);

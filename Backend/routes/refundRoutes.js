@@ -7,8 +7,15 @@ import {
 
 const router = express.Router();
 
+/**
+ * STATIC ROUTES FIRST
+ */
 router.post("/record", recordRefund);
-router.get("/:transaction_id/receipt", getRefundReceipt);
 router.get("/list", listRefunds);
+
+/**
+ * DYNAMIC ROUTE LAST
+ */
+router.get("/:transaction_id/receipt", getRefundReceipt);
 
 export default router;

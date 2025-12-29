@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, forwardRef } from "react";
+import React, { useState, useEffect, forwardRef } from "react";
 import { TrendingUp, Users, DollarSign, ShoppingCart, Receipt } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -26,22 +26,25 @@ import {
 } from "../components/ui/card";
 
 const VISIBLE_POINTS = 7;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-const NoKeyboardInput = forwardRef(({ value, onClick, placeholder, className }, ref) => (
-  <input
-    ref={ref}
-    value={value || ""}
-    onClick={(e) => {
-      e.preventDefault();
-      onClick?.(e);
-    }}
-    onFocus={(e) => e.target.blur()}
-    readOnly
-    data-no-keyboard
-    placeholder={placeholder}
-    className={className}
-  />
-));
+const NoKeyboardInput = forwardRef(
+  ({ value, onClick, placeholder, className }, ref) => (
+    <input
+      ref={ref}
+      value={value || ""}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick?.(e);
+      }}
+      onFocus={(e) => e.target.blur()}
+      readOnly
+      data-no-keyboard
+      placeholder={placeholder}
+      className={className}
+    />
+  )
+);
 
 const formatCurrency = (v) =>
   typeof v === "number" ? `₹${v.toLocaleString("en-IN")}` : v;
@@ -51,19 +54,50 @@ function Dashboard() {
   const [kpis, setKpis] = useState([]);
   const [hasData, setHasData] = useState(true);
   const [loadingReport, setLoadingReport] = useState(false);
+
   const [showReportOptions, setShowReportOptions] = useState(false);
   const [showTransactionOptions, setShowTransactionOptions] = useState(false);
+
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [specificDate, setSpecificDate] = useState(null);
 
+  // FIX: was used but never declared
+  const [selectedDailyBillNo, setSelectedDailyBillNo] = useState(null);
+
   const datePickerClassName =
     "px-3 py-2 rounded-md bg-card text-card-foreground placeholder-muted-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-300";
 
-  // Helper
-  const formatLocalDate = (date) => date.toLocaleDateString("en-CA"); // YYYY-MM-DD
+  const formatLocalDate = (date) => date.toLocaleDateString("en-CA");
 
-  // Fetch chart data
+  // -------------------- CHART DATA --------------------
+  useEffect(() => {
+    const syncSessionToBackend = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.access_token) {
+        await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/auth/session`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              access_token: session.access_token,
+            }),
+          }
+        );
+      }
+    };
+
+    syncSessionToBackend();
+  }, []);
+
+
   useEffect(() => {
     const fetchSummary = async () => {
       try {
@@ -73,22 +107,24 @@ function Dashboard() {
           .order("sales_date", { ascending: true });
 
         if (error) throw error;
+
         if (!rows?.length) {
           setHasData(false);
           return;
         }
 
-        const formatted = rows.map((r) => ({
-          date: new Date(r.sales_date).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-          }),
-          sales: r.total_sales,
-          loss: r.total_loss,
-          dump: r.total_dump,
-        }));
+        setData(
+          rows.map((r) => ({
+            date: new Date(r.sales_date).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+            }),
+            sales: r.total_sales,
+            loss: r.total_loss,
+            dump: r.total_dump,
+          }))
+        );
 
-        setData(formatted);
         setHasData(true);
       } catch (err) {
         console.error("Error fetching summary:", err);
@@ -99,7 +135,7 @@ function Dashboard() {
     fetchSummary();
   }, []);
 
-  // Fetch live KPI metrics
+  // -------------------- KPIs --------------------
   useEffect(() => {
     const fetchKPIs = async () => {
       try {
@@ -107,37 +143,35 @@ function Dashboard() {
         const start = startDate ? formatLocalDate(startDate) : formatLocalDate(today);
         const end = endDate ? formatLocalDate(endDate) : formatLocalDate(today);
 
-        // Fetch daily summary totals
-        const { data: summaryData, error: summaryErr } = await supabase
+        const { data: summaryData, error } = await supabase
           .from("daily_sales_summary")
-          .select("total_sales, total_loss, total_dump, sales_date")
+          .select("total_sales, total_loss, total_dump")
           .gte("sales_date", start)
           .lte("sales_date", end);
 
-        if (summaryErr) throw summaryErr;
+        if (error) throw error;
 
         const totalIncome = summaryData.reduce(
           (sum, r) => sum + Number(r.total_sales || 0),
           0
         );
+
         const totalExpenses = summaryData.reduce(
           (sum, r) => sum + Number(r.total_loss || 0) + Number(r.total_dump || 0),
           0
         );
 
-        // Fetch total orders (transactions)
-        const { data: txData, error: txErr } = await supabase
+        const { data: txData } = await supabase
           .from("transactions")
-          .select("id", { count: "exact" })
+          .select("id")
           .gte("created_at", `${start}T00:00:00+05:30`)
           .lte("created_at", `${end}T23:59:59+05:30`);
 
-        if (txErr) throw txErr;
         const totalOrders = txData?.length || 0;
 
-        // Fetch previous day's data for growth comparison
         const yesterday = new Date(today);
         yesterday.setDate(today.getDate() - 1);
+
         const { data: prevData } = await supabase
           .from("daily_sales_summary")
           .select("total_sales")
@@ -145,7 +179,7 @@ function Dashboard() {
           .single();
 
         const growth =
-          prevData && prevData.total_sales
+          prevData?.total_sales
             ? (((totalIncome - prevData.total_sales) / prevData.total_sales) * 100).toFixed(1)
             : "0.0";
 
@@ -153,7 +187,7 @@ function Dashboard() {
           {
             title: "Income",
             value: totalIncome,
-            delta: growth + "%",
+            delta: `${growth}%`,
             icon: DollarSign,
             color: "var(--accent)",
           },
@@ -173,7 +207,7 @@ function Dashboard() {
           },
           {
             title: "Growth",
-            value: growth + "%",
+            value: `${growth}%`,
             delta: growth >= 0 ? "↑" : "↓",
             icon: TrendingUp,
             color: "var(--primary)",
@@ -187,22 +221,23 @@ function Dashboard() {
     fetchKPIs();
   }, [startDate, endDate]);
 
+  // -------------------- REPORTS --------------------
   const downloadReport = async (type) => {
     try {
       setLoadingReport(true);
       let query = "";
+
       if (type === "range" && startDate && endDate) {
         query = `?start=${formatLocalDate(startDate)}&end=${formatLocalDate(endDate)}`;
       } else if (type === "specific" && specificDate) {
         const d = formatLocalDate(specificDate);
         query = `?start=${d}&end=${d}`;
-      } else if (type === "daily") {
+      } else {
         const today = formatLocalDate(new Date());
         query = `?start=${today}&end=${today}`;
       }
 
-      const url = `${import.meta.env.VITE_BACKEND_URL}/api/reports/generate${query}`;
-      window.open(url, "_blank");
+      window.open(`${BACKEND_URL}/api/reports/generate${query}`, "_blank");
       setShowReportOptions(false);
     } catch (err) {
       console.error("Report open failed:", err);
@@ -212,53 +247,48 @@ function Dashboard() {
     }
   };
 
-const viewTransactions = async (type) => {
-  try {
-    setLoadingReport(true);
-    let url = "";
+  // -------------------- TRANSACTIONS --------------------
+  const viewTransactions = async (type) => {
+    try {
+      setLoadingReport(true);
+      let url = `${BACKEND_URL}/api/transactions`;
 
-    if (type === "range" && startDate && endDate) {
-      const start = formatLocalDate(startDate);
-      const end = formatLocalDate(endDate);
-      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions?start=${start}&end=${end}`;
-    } else if (type === "specific" && specificDate) {
-      const d = formatLocalDate(specificDate);
-      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions?start=${d}&end=${d}`;
-    } else if (type === "daily") {
-      const today = formatLocalDate(new Date());
-      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions?start=${today}&end=${today}`;
-    } else if (type === "invoice" && selectedDailyBillNo) {
-      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions/daily/${selectedDailyBillNo}/invoice`;
-    } else {
-      url = `${import.meta.env.VITE_BACKEND_URL}/api/transactions`;
+      if (type === "daily") {
+        const today = formatLocalDate(new Date());
+        url += `?start=${today}&end=${today}`;
+      } else if (type === "specific" && specificDate) {
+        const d = formatLocalDate(specificDate);
+        url += `?start=${d}&end=${d}`;
+      } else if (type === "range" && startDate && endDate) {
+        url += `?start=${formatLocalDate(startDate)}&end=${formatLocalDate(endDate)}`;
+      } else if (type === "invoice" && selectedDailyBillNo) {
+        url = `${BACKEND_URL}/api/transactions/daily/${selectedDailyBillNo}/invoice`;
+      }
+
+      console.log("Opening transactions URL:", url);
+      window.open(url, "_blank");
+      setShowTransactionOptions(false);
+    } catch (err) {
+      console.error("Transaction view failed:", err);
+      alert("Failed to view transactions.");
+    } finally {
+      setLoadingReport(false);
     }
-
-    window.open(url, "_blank");
-
-    setShowTransactionOptions(false);
-  } catch (err) {
-    console.error("Transaction view failed:", err);
-    alert("Failed to view transactions.");
-  } finally {
-    setLoadingReport(false);
-  }
-};
-
+  };
 
 
   const visibleData = data.length
     ? data.slice(-VISIBLE_POINTS)
     : Array.from({ length: VISIBLE_POINTS }).map((_, i) => ({
-        date: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i % 7],
-        sales: Math.round(200 + Math.sin(i / 2) * 40 + i * 10),
-        loss: Math.round(80 + Math.cos(i / 3) * 20),
-        dump: Math.round(30 + (i % 3) * 10),
-      }));
+      date: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i % 7],
+      sales: Math.round(200 + Math.sin(i / 2) * 40 + i * 10),
+      loss: Math.round(80 + Math.cos(i / 3) * 20),
+      dump: Math.round(30 + (i % 3) * 10),
+    }));
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
       <Header />
-
       <main className="flex-1 p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -512,11 +542,15 @@ const viewTransactions = async (type) => {
             </Card>
           </div>
         </div>
-      </main>
 
+      </main>
       <Footer />
     </div>
   );
 }
 
-export default Dashboard
+export default Dashboard;
+
+
+
+
