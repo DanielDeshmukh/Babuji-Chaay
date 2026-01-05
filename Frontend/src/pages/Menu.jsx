@@ -112,27 +112,27 @@ const Menu = () => {
      FETCH SPECIAL NUMBER
   ---------------------------------------------------*/
 
-const fetchSpecialNumber = useCallback(async () => {
-  try {
-    const { data, error } = await supabase
-      .from("special_numbers")
-      .select("number")
-      .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const fetchSpecialNumber = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("special_numbers")
+        .select("number")
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (error) {
-      console.error("Special number error:", error);
-      return;
-    }
+      if (error) {
+        console.error("Special number error:", error);
+        return;
+      }
 
-    if (data) {
-      setTodaysSpecialNumber(data.number);
+      if (data) {
+        setTodaysSpecialNumber(data.number);
+      }
+    } catch (err) {
+      console.error("Fetch special number failed:", err);
     }
-  } catch (err) {
-    console.error("Fetch special number failed:", err);
-  }
-}, []);
+  }, []);
 
 
   /* -------------------------------------------------
@@ -155,7 +155,7 @@ const fetchSpecialNumber = useCallback(async () => {
         offer.is_recurring
           ? offer.day_of_week === dow
           : (!offer.start_date || offer.start_date <= today) &&
-            (!offer.end_date || offer.end_date >= today)
+          (!offer.end_date || offer.end_date >= today)
       );
 
       setActiveOffers(filtered);
@@ -195,8 +195,8 @@ const fetchSpecialNumber = useCallback(async () => {
       qty <= 0
         ? prev.filter((b) => b.menu_item_id !== id)
         : prev.map((b) =>
-            b.menu_item_id === id ? { ...b, quantity: qty } : b
-          )
+          b.menu_item_id === id ? { ...b, quantity: qty } : b
+        )
     );
   }, []);
 
@@ -250,109 +250,113 @@ const fetchSpecialNumber = useCallback(async () => {
   /* -------------------------------------------------
      PAYMENT LOGIC
   ---------------------------------------------------*/
- const handlePayment = async () => {
-  if (billItems.length === 0) return alert("No items.");
+  const handlePayment = async () => {
+    if (billItems.length === 0) return alert("No items.");
 
-  try {
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData?.user;
-    if (!user) throw new Error("Not authenticated.");
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+      if (!user) throw new Error("Not authenticated.");
 
-    // -------------------------------
-// STEP 1: CREATE SALE TRANSACTION
-// -------------------------------
-const { data: sale, error: saleError } = await supabase
-  .from("transactions")
-  .insert({
-    user_id: user.id,
-    transaction_type: "SALE",
-    total_amount: Number((subtotal - totalOfferDiscount).toFixed(2)),
-    discount: Number(totalOfferDiscount.toFixed(2)),
-    cash_paid: Number(cashPaid),
-    upi_paid: Number(upiPaid),
-  })
-  .select()
-  .single();
-
-if (saleError) {
-  console.error("SALE INSERT ERROR:", saleError);
-  alert(saleError.message);
-  return;
-}
-
-
-setCurrentBillNumber(sale.daily_bill_no);
-
-// ------------------------------------
-// STEP 2: INSERT LINE ITEMS (SOURCE OF TRUTH)
-// ------------------------------------
-const itemsPayload = billItems.map((b) => ({
-  transaction_id: sale.id,
-  product_id: b.product_id,
-  quantity: b.quantity,
-  unit_price: b.price,
-  item_type: "SALE",
-}));
-
-const { error: itemsError } = await supabase
-  .from("transaction_items")
-  .insert(itemsPayload);
-
-if (itemsError) throw itemsError;
-
-
-    setCurrentBillNumber(sale.daily_bill_no);
-
-    const special =
-    todaysSpecialNumber && sale.daily_bill_no === todaysSpecialNumber;
-    if (special) {
-      setSpecialDiscount(true);
-      setIsSpecialActive(true);
-      import("canvas-confetti").then(({ default: confetti }) =>
-        confetti({ particleCount: 200, spread: 80 })
-      );
-
-      await supabase
+      // -------------------------------
+      // STEP 1: CREATE SALE TRANSACTION
+      // -------------------------------
+      const { data: sale, error: saleError } = await supabase
         .from("transactions")
-        .update({
-          total_amount: 0,
-          discount: Number(subtotal.toFixed(2)),
+        .insert({
+          user_id: user.id,
+          transaction_type: "SALE",
+          total_amount: Number((subtotal - totalOfferDiscount).toFixed(2)),
+          discount: Number(totalOfferDiscount.toFixed(2)),
+          cash_paid: Number(cashPaid),
+          upi_paid: Number(upiPaid),
         })
-        .eq("id", sale.id);
+        .select()
+        .single();
 
-    }
-
-
-
-    // --------------------------
-    // PRINT INVOICE
-    // --------------------------
-
-      
+      if (saleError) {
+        console.error("SALE INSERT ERROR:", saleError);
+        alert(saleError.message);
+        return;
+      }
 
 
-    const invoiceData = {
-      shopName: "BABUJI CHAAY",
-      address: "Babuji Chaay, Shop no. 7, K.D. Empire, Mira Road (E), Thane - 401107",
-      phone: "+91 9076165666",
-      billNo: sale.daily_bill_no,
-      date: new Date().toLocaleString(),
-      items: billItems.map((b) => ({
-        qty: b.quantity,
-        name: b.name,
-        price: b.price,
-        amt: b.price * b.quantity,
-      })),
-      subtotal,
-      discount: totalOfferDiscount,
-      appliedOffers: appliedOfferNames,
-      cashPaid,
-      upiPaid,
-      total: finalTotal,
-    };
+      setCurrentBillNumber(sale.daily_bill_no);
 
-    const printWindow = window.open("", "PRINT", "width=300,height=600");
-    printWindow.document.write(`
+      // ------------------------------------
+      // STEP 2: INSERT LINE ITEMS (SOURCE OF TRUTH)
+      // ------------------------------------
+      const itemsPayload = billItems.map((b) => ({
+        transaction_id: sale.id,
+        product_id: b.product_id,
+        quantity: b.quantity,
+        unit_price: b.price,
+        item_type: "SALE",
+        user_id: user.id,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("transaction_items")
+        .insert(itemsPayload);
+
+      console.log("ITEMS PAYLOAD:", itemsPayload);
+      console.log("ITEMS ERROR:", itemsError);
+
+      if (itemsError) throw itemsError;
+
+
+      setCurrentBillNumber(sale.daily_bill_no);
+
+      const special =
+        todaysSpecialNumber && sale.daily_bill_no === todaysSpecialNumber;
+      if (special) {
+        setSpecialDiscount(true);
+        setIsSpecialActive(true);
+        import("canvas-confetti").then(({ default: confetti }) =>
+          confetti({ particleCount: 200, spread: 80 })
+        );
+
+        await supabase
+          .from("transactions")
+          .update({
+            total_amount: 0,
+            discount: Number(subtotal.toFixed(2)),
+          })
+          .eq("id", sale.id);
+
+      }
+
+
+
+      // --------------------------
+      // PRINT INVOICE
+      // --------------------------
+
+
+
+
+      const invoiceData = {
+        shopName: "BABUJI CHAAY",
+        address: "Babuji Chaay, Shop no. 7, K.D. Empire, Mira Road (E), Thane - 401107",
+        phone: "+91 9076165666",
+        billNo: sale.daily_bill_no,
+        date: new Date().toLocaleString(),
+        items: billItems.map((b) => ({
+          qty: b.quantity,
+          name: b.name,
+          price: b.price,
+          amt: b.price * b.quantity,
+        })),
+        subtotal,
+        discount: totalOfferDiscount,
+        appliedOffers: appliedOfferNames,
+        cashPaid,
+        upiPaid,
+        total: finalTotal,
+      };
+
+      const printWindow = window.open("", "PRINT", "width=300,height=600");
+      printWindow.document.write(`
       <!DOCTYPE html>
       <html lang="en">
       <head>
@@ -392,26 +396,25 @@ if (itemsError) throw itemsError;
             <thead><tr><th>Qty</th><th>Item</th><th>Price</th><th>Amt</th></tr></thead>
             <tbody>
               ${invoiceData.items
-                .map(
-                  (item) =>
-                    `<tr>
+          .map(
+            (item) =>
+              `<tr>
                       <td>${item.qty}</td>
                       <td>${item.name}</td>
                       <td>${item.price.toFixed(2)}</td>
                       <td>${item.amt.toFixed(2)}</td>
                     </tr>`
-                )
-                .join("")}
+          )
+          .join("")}
             </tbody>
           </table>
           <div class="totals">
             <div><span>SUBTOTAL</span><span>₹ ${invoiceData.subtotal.toFixed(2)}</span></div>
-            ${
-              invoiceData.discount > 0
-                ? `<div class="discount-row"><span>Discount Deducted</span><span>-₹ ${invoiceData.discount.toFixed(2)}</span></div>
+            ${invoiceData.discount > 0
+          ? `<div class="discount-row"><span>Discount Deducted</span><span>-₹ ${invoiceData.discount.toFixed(2)}</span></div>
                    <div class="offers-list">Offers: ${invoiceData.appliedOffers.join(', ') || 'N/A'}</div>`
-                : ""
-            }
+          : ""
+        }
             <div><span>CASH</span><span>₹ ${invoiceData.cashPaid.toFixed(2)}</span></div>
             <div><span>UPI</span><span>₹ ${invoiceData.upiPaid.toFixed(2)}</span></div>
             <div class="total"><span>TOTAL PAID</span><span>₹ ${invoiceData.total.toFixed(2)}</span></div>
@@ -421,27 +424,27 @@ if (itemsError) throw itemsError;
       </body>
       </html>
     `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
 
-    alert(`Paid! Bill #${sale.daily_bill_no}`);
+      alert(`Paid! Bill #${sale.daily_bill_no}`);
 
-    setTimeout(() => {
-      setBillItems([]);
-      setShowBill(false);
-      setCashPaid(0);
-      setUpiPaid(0);
-      setPendingCashInput("");
-      setSpecialDiscount(false);
-      setCurrentBillNumber(null);
-      setIsSpecialActive(false);
-    }, 1500);
-  } catch (err) {
-    alert(err.message);
-  }
-};
+      setTimeout(() => {
+        setBillItems([]);
+        setShowBill(false);
+        setCashPaid(0);
+        setUpiPaid(0);
+        setPendingCashInput("");
+        setSpecialDiscount(false);
+        setCurrentBillNumber(null);
+        setIsSpecialActive(false);
+      }, 1500);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   /* -------------------------------------------------
      INITIAL LOAD + REALTIME
@@ -497,11 +500,10 @@ if (itemsError) throw itemsError;
 
   return (
     <div
-      className={`min-h-screen flex flex-col bg-background transition-all ${
-        isSpecialActive
+      className={`min-h-screen flex flex-col bg-background transition-all ${isSpecialActive
           ? "animate-[pulse_2s_ease-in-out_infinite]"
           : ""
-      }`}
+        }`}
     >
       <Header />
 
@@ -576,18 +578,18 @@ if (itemsError) throw itemsError;
           </div>
         )}
 
-       {billItems.length > 0 && (
-  <button
-    className="fixed bottom-6 right-6 bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg"
-    onClick={() => setShowBill(true)}
-  >
-    View Bill
-  </button>
-)}
+        {billItems.length > 0 && (
+          <button
+            className="fixed bottom-6 right-6 bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg"
+            onClick={() => setShowBill(true)}
+          >
+            View Bill
+          </button>
+        )}
 
-{/* SIDEBAR BILL */}
-<div
-  className={`
+        {/* SIDEBAR BILL */}
+        <div
+          className={`
     fixed top-0 right-0 
     h-screen w-full 
     md:max-w-md 
@@ -598,185 +600,184 @@ if (itemsError) throw itemsError;
     flex flex-col 
     ${showBill ? "translate-x-0" : "translate-x-full"}
   `}
->
-  {/* CLOSE BUTTON */}
-  <button
-    className="text-red-600 dark:text-red-400 font-bold ml-auto mb-4"
-    onClick={() => setShowBill(false)}
-  >
-    Close
-  </button>
-
-  {/* BILL TITLE */}
-  <h2 className="text-2xl font-bold mb-2">Your Bill</h2>
-
-  {currentBillNumber && (
-    <p className="font-bold mb-4">Bill #{currentBillNumber}</p>
-  )}
-
-  {/* BILL ITEMS (scrollable, auto height) */}
-  <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1">
-    {billItems.map((item) => (
-      <div
-        key={item.menu_item_id}
-        className="p-3 bg-background border border-border rounded-lg shadow-sm"
-      >
-        <div className="flex justify-between">
-          {/* NAME + PRICE */}
-          <div>
-            <p className="font-semibold">{item.name}</p>
-            <p className="text-sm text-muted-foreground">
-              ₹{item.price} × {item.quantity}
-            </p>
-          </div>
-
-          {/* CONTROLS */}
-          <div className="flex items-center gap-2">
-            <button
-              className="bg-red-600 text-white w-8 h-8 rounded-full"
-              onClick={() =>
-                updateBillQuantity(item.menu_item_id, item.quantity - 1)
-              }
-            >
-              -
-            </button>
-
-            <span className="font-semibold">{item.quantity}</span>
-
-            <button
-              className="bg-green-700 text-white w-8 h-8 rounded-full"
-              onClick={() =>
-                updateBillQuantity(item.menu_item_id, item.quantity + 1)
-              }
-            >
-              +
-            </button>
-
-            <button
-              onClick={() => removeFromBill(item.menu_item_id)}
-              className="text-red-600 font-bold"
-            >
-              x
-            </button>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-
-  {/* SUMMARY SECTION */}
-  <div className="mt-4 border-t border-border pt-4">
-    <p className="text-lg font-semibold">
-      Subtotal: ₹{subtotal.toFixed(2)}
-    </p>
-
-    {/* OFFER DISCOUNT */}
-    {!specialDiscount && totalOfferDiscount > 0 && (
-      <div className="mt-3 p-3 bg-green-700/10 border border-green-700 rounded-lg">
-        <p className="text-green-700 font-bold">
-          Offer Discount: -₹{totalOfferDiscount.toFixed(2)}
-        </p>
-        <ul className="list-disc ml-4 text-sm mt-1 text-green-700">
-          {appliedOfferNames.map((o) => (
-            <li key={o}>{o}</li>
-          ))}
-        </ul>
-      </div>
-    )}
-
-    {/* SPECIAL DISCOUNT BANNER */}
-    {specialDiscount && (
-      <div className="p-3 bg-accent/20 border border-accent rounded-lg mt-3">
-        <p className="text-accent font-bold text-lg animate-pulse">
-          🎉 Special Number Discount Applied! 🎉
-        </p>
-      </div>
-    )}
-
-    {/* FINAL TOTAL */}
-    <p className="font-bold text-2xl mt-4">
-      Final Total: ₹{finalTotal.toFixed(2)}
-    </p>
-
-    {/* SUGGESTED AMOUNTS */}
-    <div className="mt-3 flex flex-wrap gap-2">
-      {suggestedAmounts.map((amt, i) => (
-        <button
-          key={i}
-          onClick={() => setCashPaid(amt)}
-          className={`px-4 py-2 rounded-lg font-bold transition ${
-            cashPaid === amt
-              ? "bg-green-600 text-white"
-              : "bg-primary text-primary-foreground"
-          }`}
         >
-          ₹{amt}
-        </button>
-      ))}
-    </div>
-
-    {/* PENDING AMOUNT */}
-    {pendingAmount > 0 && (
-      <div>
-        <p className="text-red-600 font-bold mt-3">
-          Pending: ₹{pendingAmount.toFixed(2)}
-        </p>
-
-        <input
-          type="number"
-          className="p-2 w-full border border-border rounded my-2 bg-background"
-          placeholder="Enter amount"
-          value={pendingCashInput}
-          onChange={(e) => setPendingCashInput(e.target.value)}
-        />
-
-        <div className="flex gap-2">
+          {/* CLOSE BUTTON */}
           <button
-            onClick={() => {
-              const val = Number(pendingCashInput);
-              if (!val) return;
-              setCashPaid(cashPaid + val);
-              setPendingCashInput("");
-            }}
-            className="bg-primary text-primary-foreground px-3 py-2 rounded-lg"
+            className="text-red-600 dark:text-red-400 font-bold ml-auto mb-4"
+            onClick={() => setShowBill(false)}
           >
-            Pay Cash
+            Close
           </button>
 
-          <button
-            onClick={() => {
-              const val = Number(pendingCashInput);
-              if (!val) return;
-              setUpiPaid(upiPaid + val);
-              setPendingCashInput("");
-            }}
-            className="bg-green-700 text-white px-3 py-2 rounded-lg"
-          >
-            Pay UPI
-          </button>
+          {/* BILL TITLE */}
+          <h2 className="text-2xl font-bold mb-2">Your Bill</h2>
+
+          {currentBillNumber && (
+            <p className="font-bold mb-4">Bill #{currentBillNumber}</p>
+          )}
+
+          {/* BILL ITEMS (scrollable, auto height) */}
+          <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1">
+            {billItems.map((item) => (
+              <div
+                key={item.menu_item_id}
+                className="p-3 bg-background border border-border rounded-lg shadow-sm"
+              >
+                <div className="flex justify-between">
+                  {/* NAME + PRICE */}
+                  <div>
+                    <p className="font-semibold">{item.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      ₹{item.price} × {item.quantity}
+                    </p>
+                  </div>
+
+                  {/* CONTROLS */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="bg-red-600 text-white w-8 h-8 rounded-full"
+                      onClick={() =>
+                        updateBillQuantity(item.menu_item_id, item.quantity - 1)
+                      }
+                    >
+                      -
+                    </button>
+
+                    <span className="font-semibold">{item.quantity}</span>
+
+                    <button
+                      className="bg-green-700 text-white w-8 h-8 rounded-full"
+                      onClick={() =>
+                        updateBillQuantity(item.menu_item_id, item.quantity + 1)
+                      }
+                    >
+                      +
+                    </button>
+
+                    <button
+                      onClick={() => removeFromBill(item.menu_item_id)}
+                      className="text-red-600 font-bold"
+                    >
+                      x
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* SUMMARY SECTION */}
+          <div className="mt-4 border-t border-border pt-4">
+            <p className="text-lg font-semibold">
+              Subtotal: ₹{subtotal.toFixed(2)}
+            </p>
+
+            {/* OFFER DISCOUNT */}
+            {!specialDiscount && totalOfferDiscount > 0 && (
+              <div className="mt-3 p-3 bg-green-700/10 border border-green-700 rounded-lg">
+                <p className="text-green-700 font-bold">
+                  Offer Discount: -₹{totalOfferDiscount.toFixed(2)}
+                </p>
+                <ul className="list-disc ml-4 text-sm mt-1 text-green-700">
+                  {appliedOfferNames.map((o) => (
+                    <li key={o}>{o}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* SPECIAL DISCOUNT BANNER */}
+            {specialDiscount && (
+              <div className="p-3 bg-accent/20 border border-accent rounded-lg mt-3">
+                <p className="text-accent font-bold text-lg animate-pulse">
+                  🎉 Special Number Discount Applied! 🎉
+                </p>
+              </div>
+            )}
+
+            {/* FINAL TOTAL */}
+            <p className="font-bold text-2xl mt-4">
+              Final Total: ₹{finalTotal.toFixed(2)}
+            </p>
+
+            {/* SUGGESTED AMOUNTS */}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {suggestedAmounts.map((amt, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCashPaid(amt)}
+                  className={`px-4 py-2 rounded-lg font-bold transition ${cashPaid === amt
+                      ? "bg-green-600 text-white"
+                      : "bg-primary text-primary-foreground"
+                    }`}
+                >
+                  ₹{amt}
+                </button>
+              ))}
+            </div>
+
+            {/* PENDING AMOUNT */}
+            {pendingAmount > 0 && (
+              <div>
+                <p className="text-red-600 font-bold mt-3">
+                  Pending: ₹{pendingAmount.toFixed(2)}
+                </p>
+
+                <input
+                  type="number"
+                  className="p-2 w-full border border-border rounded my-2 bg-background"
+                  placeholder="Enter amount"
+                  value={pendingCashInput}
+                  onChange={(e) => setPendingCashInput(e.target.value)}
+                />
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const val = Number(pendingCashInput);
+                      if (!val) return;
+                      setCashPaid(cashPaid + val);
+                      setPendingCashInput("");
+                    }}
+                    className="bg-primary text-primary-foreground px-3 py-2 rounded-lg"
+                  >
+                    Pay Cash
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const val = Number(pendingCashInput);
+                      if (!val) return;
+                      setUpiPaid(upiPaid + val);
+                      setPendingCashInput("");
+                    }}
+                    className="bg-green-700 text-white px-3 py-2 rounded-lg"
+                  >
+                    Pay UPI
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* CHANGE TO RETURN */}
+            {changeToGive > 0 && (
+              <p className="text-green-600 font-bold mt-2">
+                Return ₹{changeToGive.toFixed(2)}
+              </p>
+            )}
+
+            {/* COMPLETE PAYMENT */}
+            <button
+              onClick={handlePayment}
+              disabled={pendingAmount > 0 || billItems.length === 0}
+              className="mt-4 w-full bg-primary text-primary-foreground p-3 rounded-xl font-bold disabled:opacity-50"
+            >
+              Complete Payment
+            </button>
+          </div>
         </div>
-      </div>
-    )}
 
-    {/* CHANGE TO RETURN */}
-    {changeToGive > 0 && (
-      <p className="text-green-600 font-bold mt-2">
-        Return ₹{changeToGive.toFixed(2)}
-      </p>
-    )}
 
-    {/* COMPLETE PAYMENT */}
-    <button
-      onClick={handlePayment}
-      disabled={pendingAmount > 0 || billItems.length === 0}
-      className="mt-4 w-full bg-primary text-primary-foreground p-3 rounded-xl font-bold disabled:opacity-50"
-    >
-      Complete Payment
-    </button>
-  </div>
-</div>
-
-       
       </main>
     </div>
   );

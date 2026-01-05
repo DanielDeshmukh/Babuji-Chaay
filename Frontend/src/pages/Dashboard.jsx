@@ -24,6 +24,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
+import { data } from "react-router-dom";
 
 const VISIBLE_POINTS = 7;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -45,6 +46,18 @@ const NoKeyboardInput = forwardRef(
     />
   )
 );
+const {
+  data: { session },
+  error,
+} = await supabase.auth.getSession();
+
+if (error) {
+  console.error("Session error:", error);
+}
+
+console.log("SESSION:", session);
+console.log("ACCESS TOKEN:", session?.access_token);
+
 
 const formatCurrency = (v) =>
   typeof v === "number" ? `₹${v.toLocaleString("en-IN")}` : v;

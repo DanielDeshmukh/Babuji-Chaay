@@ -30,65 +30,26 @@ const theme = {
 };
 
 // =====================================================
-// HELPER: Extract user ID from cookie or Authorization header
-// =====================================================
-export const getSessionUserId = async (req) => {
-  console.log("🔐 getSessionUserId called");
-
-  const headerToken = req.headers.authorization?.replace("Bearer ", "");
-  const cookieToken = req.cookies?.["sb-access-token"];
-  const token = headerToken || cookieToken;
-
-  console.log("📦 Header token present:", !!headerToken, "Cookie token present:", !!cookieToken);
-
-  if (!token) {
-    console.warn("❌ No token found in header or cookie");
-    return null;
-  }
-
-  try {
-    // Using Service Role client to validate token and get user info
-    const { data, error } = await supabaseServer.auth.getUser(token);
-    if (error) {
-      console.error("❌ supabaseServer.auth.getUser error:", error.message);
-      return null;
-    }
-
-    const userId = data?.user?.id;
-    if (!userId) {
-      console.warn("⚠️ Token valid but no user.id returned");
-      return null;
-    }
-
-    console.log("✅ Authenticated user:", userId);
-    return userId;
-  } catch (err) {
-    console.error("❌ Failed extracting session:", err);
-    return null;
-  }
-};
-
-// =====================================================
 // VIEW ALL TRANSACTIONS
 // =====================================================
 export const viewTransactions = async (req, res) => {
   try {
-    console.log("🔹 [viewTransactions] Checking session...");
-    const sessionUserId = await getSessionUserId(req);
-
-    if (!sessionUserId) {
-      console.warn("❌ Unauthorized access to transactions");
-      return res.status(401).json({ error: "Unauthorized: No active session" });
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
+
+    console.log("🔹 [viewTransactions] Checking session...");
+
+
 
     const { start, end } = req.query;
 
-    console.log("🔹 Fetching transactions for user:", sessionUserId, "Start:", start, "End:", end);
 
     let query = supabaseServer
       .from("transactions")
       .select("*")
-      .eq("user_id", sessionUserId)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (start) query = query.gte("created_at", `${start}T00:00:00+05:30`);
@@ -160,22 +121,22 @@ export const viewTransactions = async (req, res) => {
 // =====================================================
 export const viewTransactionInvoice = async (req, res) => {
   try {
-    const sessionUserId = await getSessionUserId(req);
-    if (!sessionUserId) {
-      console.warn("❌ Unauthorized access to invoice");
-      return res.status(401).json({ error: "Unauthorized: No session" });
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
+
 
     const { billNo } = req.params;
     const { format } = req.query;
 
-    console.log(`🔹 Fetching invoice | Bill: ${billNo} | User: ${sessionUserId}`);
+    console.log(`🔹 Fetching invoice | Bill: ${billNo} | User: ${userId}`);
 
     const { data: txRows, error } = await supabaseServer
       .from("transactions")
       .select("*, applied_offer_ids")
       .eq("daily_bill_no", billNo)
-      .eq("user_id", sessionUserId)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -289,27 +250,27 @@ export const viewTransactionInvoice = async (req, res) => {
                   <thead><tr><th>Qty</th><th>Item</th><th>Price</th><th>Amt</th></tr></thead>
                   <tbody>
                     ${invoiceData.items
-                        .map(
-                            (item) =>
-                                `<tr>
+        .map(
+          (item) =>
+            `<tr>
                                     <td>${item.qty}</td>
                                     <td>${item.name}</td>
                                     <td>${item.price.toFixed(2)}</td>
                                     <td>${item.amt.toFixed(2)}</td>
                                 </tr>`
-                        )
-                        .join("")}
+        )
+        .join("")}
                   </tbody>
                 </table>
                 <div class="totals">
                   <div><span>SUBTOTAL</span><span>₹ ${invoiceData.subtotal.toFixed(2)}</span></div>
                     
-                    ${invoiceData.discount > 0 ? 
-                        `<div class="discount-row"><span>Discount Deducted</span><span>-₹ ${invoiceData.discount.toFixed(2)}</span></div>
+                    ${invoiceData.discount > 0 ?
+        `<div class="discount-row"><span>Discount Deducted</span><span>-₹ ${invoiceData.discount.toFixed(2)}</span></div>
                         <div class="offers-list">
                             Offers: ${invoiceData.appliedOffers.join(', ') || 'N/A'}
-                        </div>` 
-                        : ''}
+                        </div>`
+        : ''}
 
                   <div><span>CASH</span><span>₹ ${invoiceData.cashPaid.toFixed(2)}</span></div>
                   <div><span>UPI</span><span>₹ ${invoiceData.upiPaid.toFixed(2)}</span></div>

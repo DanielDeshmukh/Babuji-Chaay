@@ -10,7 +10,6 @@ import { ModeToggle } from "./components/ModeToggle";
 import AuthModal from "./components/AuthModal";
 import { ThemeProvider } from "./components/theme-provider";
 import Menu from "./pages/Menu";
-import DevTestPage from "./pages/DevTestPage";
 import Settings from "./pages/Settings";
 import CreationPage from "./pages/CreationPage";
 import Login from "./pages/Login";
@@ -111,7 +110,6 @@ function App() {
             <Route path="/splashscreen" element={<SplashScreen />} />
             <Route path="/login" element={<Login />} />
             <Route path="/menu" element={<Menu />} />
-            <Route path="/devtest" element={<DevTestPage />} />
             <Route path="/auth" element={<AuthModal />} />
             <Route path="/create" element={<CreationPage />} />
             <Route path="/profile" element={<Profile />} />

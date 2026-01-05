@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
+import { requireAuth } from "./middleware/auth.js";
 
 import reportRoutes from "./routes/reportRoutes.js";
 import transactionRoutes from "./routes/transactionRoutes.js";
@@ -97,6 +98,7 @@ app.use(
     console.log("➡️ /api/reports hit");
     next();
   },
+  requireAuth,
   reportRoutes
 );
 
@@ -111,18 +113,31 @@ app.use(
     );
     next();
   },
+  requireAuth,
   transactionRoutes
 );
 
-app.use("/api/exports", (req, res, next) => {
-  console.log("➡️ /api/exports hit");
-  exportRoutes(req, res, next);
-});
+app.use(
+  "/api/exports",
+  (req, res, next) => {
+    console.log("➡️ /api/exports hit");
+    next();
+  },
+  requireAuth,
+  exportRoutes
+);
 
-app.use("/api/refund", (req, res, next) => {
-  console.log("➡️ /api/refund hit");
-  refundRoutes(req, res, next);
-});
+
+app.use(
+  "/api/refund",
+  (req, res, next) => {
+    console.log("➡️ /api/refund hit");
+    next();
+  },
+  // requireAuth,
+  refundRoutes
+);
+
 
 // ------------------------------------------------------------------
 // 🧪 DATABASE CONNECTIVITY TEST

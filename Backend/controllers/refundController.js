@@ -11,15 +11,16 @@ const toNumber = (v, fallback = 0) => {
 };
 
 /**
- * GET /api/refund
- * Lists transactions that contain refunds
+ * GET /api/refund/list
+ * Lists refund transactions
  */
 export const listRefunds = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("transactions")
-      .select("id, created_at, refund")
-      .not("refund", "is", null)
+      .select("id, created_at, total_amount, parent_id")
+      .eq("transaction_type", "REFUND")
+      .eq("user_id", req.userId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -36,18 +37,19 @@ export const listRefunds = async (req, res) => {
 
 /**
  * POST /api/refund/record
- * Records a refund against a transaction
+ * Records a refund against a SALE transaction
  */
 export const recordRefund = async (req, res) => {
   try {
-    const { transaction_id, entries, refunded_by = null } = req.body ?? {};
+    const { transaction_id, entries } = req.body ?? {};
+    const refunded_by = req.userId;
 
     if (!transaction_id || !Array.isArray(entries) || entries.length === 0) {
       return res.status(400).json({ error: "Invalid refund request" });
     }
 
     /* -------------------------------------------------------
-       Fetch original SALE transaction
+       1. Fetch SALE transaction
     ------------------------------------------------------- */
     const { data: sale, error: saleErr } = await supabase
       .from("transactions")
@@ -56,11 +58,87 @@ export const recordRefund = async (req, res) => {
       .single();
 
     if (saleErr || !sale) {
-      return res.status(404).json({ error: "Sale not found" });
+      return res.status(404).json({ error: "Transaction not found" });
+    }
+
+    if (sale.transaction_type !== "SALE") {
+      return res
+        .status(400)
+        .json({ error: "Cannot refund a refund transaction" });
     }
 
     /* -------------------------------------------------------
-       Create REFUND transaction
+       2. Fetch SALE items (SOURCE OF TRUTH)
+    ------------------------------------------------------- */
+    const { data: saleItems, error: saleItemsErr } = await supabase
+      .from("transaction_items")
+      .select("*")
+      .eq("transaction_id", sale.id)
+      .eq("item_type", "SALE");
+
+    if (saleItemsErr || !saleItems.length) {
+      return res.status(400).json({ error: "No sale items found" });
+    }
+
+    let refundTotal = 0;
+    const refundItemsPayload = [];
+
+    /* -------------------------------------------------------
+       3. Validate refund entries
+    ------------------------------------------------------- */
+    for (const entry of entries) {
+      const { product_id, refund_qty } = entry;
+
+      if (!product_id || refund_qty <= 0) {
+        return res.status(400).json({ error: "Invalid refund entry" });
+      }
+
+      const saleItem = saleItems.find(
+        (i) => Number(i.product_id) === Number(product_id)
+      );
+
+      if (!saleItem) {
+        return res.status(400).json({ error: "Product not found in sale" });
+      }
+
+      /* -----------------------------------------------
+         Already refunded quantity check
+         (NO parent_id — correct by schema)
+      ----------------------------------------------- */
+      const { data: refundedItems, error: refundedErr } = await supabase
+        .from("transaction_items")
+        .select("quantity")
+        .eq("transaction_id", sale.id)
+        .eq("product_id", product_id)
+        .eq("item_type", "REFUND");
+
+      if (refundedErr) {
+        console.error(refundedErr);
+        return res.status(500).json({ error: "Refund lookup failed" });
+      }
+
+      const alreadyRefundedQty =
+        refundedItems?.reduce((sum, r) => sum + Number(r.quantity), 0) || 0;
+
+      if (refund_qty + alreadyRefundedQty > saleItem.quantity) {
+        return res
+          .status(400)
+          .json({ error: "Refund quantity exceeds sold quantity" });
+      }
+
+      const amount = refund_qty * Number(saleItem.unit_price);
+      refundTotal += amount;
+
+      refundItemsPayload.push({
+        product_id,
+        refund_qty,
+        unit_price: saleItem.unit_price,
+        amount,
+      });
+    }
+
+    /* -------------------------------------------------------
+       4. Create REFUND transaction
     ------------------------------------------------------- */
     const { data: refundTx, error: refundTxErr } = await supabase
       .from("transactions")
@@ -68,200 +146,188 @@ export const recordRefund = async (req, res) => {
         transaction_type: "REFUND",
         parent_id: sale.id,
         user_id: sale.user_id,
+        total_amount: refundTotal,
         refunded_by,
-        total_amount: 0
       })
       .select()
       .single();
 
-    if (refundTxErr || !refundTx) {
-      console.error("[recordRefund] refundTxErr", refundTxErr);
-      return res.status(500).json({ error: "Failed to create refund transaction" });
-    }
-
-    let refundTotal = 0;
-
-    /* -------------------------------------------------------
-       Insert refund items
-    ------------------------------------------------------- */
-    for (const entry of entries) {
-      const { billing_item_id, refund_qty } = entry;
-
-      if (!billing_item_id || refund_qty <= 0) {
-        return res.status(400).json({ error: "Invalid refund entry" });
-      }
-
-      const { data: saleItem, error: itemErr } = await supabase
-        .from("transaction_items")
-        .select("*")
-        .eq("id", billing_item_id)
-        .single();
-
-      if (itemErr || !saleItem) {
-        return res.status(400).json({ error: "Invalid sale item" });
-      }
-
-      if (refund_qty > saleItem.quantity) {
-        return res.status(400).json({ error: "Refund quantity exceeds sold quantity" });
-      }
-
-      const unitPrice = toNumber(saleItem.price) / toNumber(saleItem.quantity, 1);
-      const amount = refund_qty * unitPrice;
-
-      refundTotal += amount;
-
-      const { error: refundItemErr } = await supabase
-        .from("transaction_items")
-        .insert({
-          transaction_id: refundTx.id,
-          sale_item_id: saleItem.id,
-          product_id: saleItem.product_id,
-          quantity: refund_qty,
-          price: amount
-        });
-
-      if (refundItemErr) {
-        console.error("[recordRefund] refundItemErr", refundItemErr);
-        return res.status(400).json({ error: refundItemErr.message });
-      }
+    if (refundTxErr) {
+      console.error(refundTxErr);
+      return res
+        .status(500)
+        .json({ error: "Failed to create refund transaction" });
     }
 
     /* -------------------------------------------------------
-       Update refund transaction total
+       5. Insert REFUND line items
+       (transaction_id = SALE ID — THIS IS CRITICAL)
     ------------------------------------------------------- */
-    const { error: updateErr } = await supabase
-      .from("transactions")
-      .update({ total_amount: refundTotal })
-      .eq("id", refundTx.id);
+    const refundItemsInsert = refundItemsPayload.map((i) => ({
+      transaction_id: sale.id,
+      product_id: i.product_id,
+      quantity: i.refund_qty,
+      unit_price: i.unit_price,
+      item_type: "REFUND",
+      user_id: refunded_by,
+    }));
 
-    if (updateErr) {
-      console.error("[recordRefund] updateErr", updateErr);
-      return res.status(500).json({ error: "Failed to finalize refund" });
+    const { error: refundItemsErr } = await supabase
+      .from("transaction_items")
+      .insert(refundItemsInsert);
+
+    if (refundItemsErr) {
+      console.error(refundItemsErr);
+      return res.status(500).json({ error: "Failed to insert refund items" });
     }
 
     return res.status(200).json({
       ok: true,
-      refund_transaction_id: refundTx.id
+      refund_transaction_id: refundTx.id,
     });
-
   } catch (err) {
     console.error("[recordRefund]", err);
     return res.status(500).json({ error: "Refund failed" });
   }
 };
 
+
 /**
  * GET /api/refund/:transaction_id/receipt
- * Generates PDF for ONE refund transaction only
+ * Generates receipt for ONE refund transaction
  */
 export const getRefundReceipt = async (req, res) => {
-  let browser;
-
   try {
-    const refundId = toNumber(req.params.transaction_id);
-
-    if (!refundId) {
-      return res.status(400).send("Invalid refund ID");
-    }
+    const { transaction_id } = req.params;
 
     /* -------------------------------------------------------
-       Fetch REFUND transaction
+       1. Fetch REFUND transaction
     ------------------------------------------------------- */
-    const { data: refund, error: refundErr } = await supabase
+    const { data: refundTx, error: refundErr } = await supabase
       .from("transactions")
       .select("*")
-      .eq("id", refundId)
+      .eq("id", transaction_id)
       .eq("transaction_type", "REFUND")
       .single();
 
-    if (refundErr || !refund) {
+    if (refundErr || !refundTx) {
       return res.status(404).send("Refund not found");
     }
 
     /* -------------------------------------------------------
-       Fetch refund items
+       2. Fetch REFUND items (via SALE transaction_id)
     ------------------------------------------------------- */
-    const { data: items, error: itemsErr } = await supabase
+    const { data: refundItems, error: itemsErr } = await supabase
       .from("transaction_items")
-      .select(`
-        quantity,
-        price,
-        products (
-          name
-        )
-      `)
-      .eq("transaction_id", refund.id);
+      .select("*")
+      .eq("transaction_id", refundTx.parent_id)
+      .eq("item_type", "REFUND");
 
-    if (itemsErr || !items || items.length === 0) {
+    if (itemsErr || !refundItems.length) {
       return res.status(404).send("No refund items found");
     }
 
     /* -------------------------------------------------------
-       Generate PDF
+       3. Fetch product names
     ------------------------------------------------------- */
-    browser = await puppeteer.launch({
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    const productIds = refundItems.map((i) => i.product_id);
+
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, name")
+      .in("id", productIds);
+
+    const productMap = {};
+    products?.forEach((p) => {
+      productMap[p.id] = p.name;
     });
 
-    const page = await browser.newPage();
+    /* -------------------------------------------------------
+       4. Build receipt rows
+    ------------------------------------------------------- */
+    let total = 0;
 
-    const rows = items
-      .map(i => `
-        <tr>
-          <td>${i.products?.name || "Item"}</td>
-          <td>${i.quantity}</td>
-          <td>₹${toNumber(i.price).toFixed(2)}</td>
-        </tr>
-      `)
+    const rows = refundItems
+      .map((item) => {
+        const amount = Number(item.unit_price) * Number(item.quantity);
+        total += amount;
+
+        return `
+<tr>
+  <td>${productMap[item.product_id] || "Item"}</td>
+  <td>${item.quantity}</td>
+  <td>₹${amount.toFixed(2)}</td>
+</tr>`;
+      })
       .join("");
 
+    /* -------------------------------------------------------
+       5. HTML (58mm thermal)
+    ------------------------------------------------------- */
     const html = `
-      <html>
-        <body style="font-family: monospace">
-          <h2>BABUJI CHAAY</h2>
-          <h3>REFUND RECEIPT</h3>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Refund Receipt</title>
+<style>
+body {
+  width: 58mm;
+  font-family: monospace;
+  font-size: 12px;
+}
+.center { text-align: center; }
+hr { border: none; border-top: 1px dashed #000; }
+table { width: 100%; }
+td { padding: 2px 0; }
+.right { text-align: right; }
+</style>
+</head>
+<body>
 
-          <p>Refund ID: ${refund.id}</p>
-          <p>Date: ${dayjs(refund.created_at).format("DD MMM YYYY HH:mm")}</p>
+<div class="center">
+  <strong>BABUJI CHAAY</strong><br/>
+  Shop no. 7, K.D. Empire<br/>
+  Mira Road (E), Thane - 401107<br/>
+  +91 9076165666
+</div>
 
-          <table width="100%" border="1" cellspacing="0" cellpadding="4">
-            <thead>
-              <tr>
-                <th align="left">Item</th>
-                <th>Qty</th>
-                <th>Amount</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
+<hr/>
 
-          <h3>Total Refund: ₹${toNumber(refund.total_amount).toFixed(2)}</h3>
+<div class="center"><strong>REFUND RECEIPT</strong></div>
 
-          <p>Thank you</p>
-        </body>
-      </html>
-    `;
+Refund ID: ${refundTx.id}<br/>
+Date: ${dayjs(refundTx.created_at).format("DD-MMM-YYYY HH:mm")}
 
-    await page.setContent(html, { waitUntil: "networkidle0" });
+<hr/>
 
-    const pdf = await page.pdf({
-      width: "80mm",
-      printBackground: true
-    });
+<table>
+<tr>
+  <td>Item</td>
+  <td>Qty</td>
+  <td class="right">Amt</td>
+</tr>
+${rows}
+</table>
 
-    res.set({
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename=refund-${refund.id}.pdf`
-    });
+<hr/>
 
-    return res.send(pdf);
+<div class="right">
+Total Refund: ₹${total.toFixed(2)}
+</div>
 
+<hr/>
+
+<div class="center">Thank you</div>
+
+</body>
+</html>
+`;
+
+    res.setHeader("Content-Type", "text/html");
+    res.send(html);
   } catch (err) {
     console.error("[getRefundReceipt]", err);
-    return res.status(500).send("Failed to generate receipt");
-  } finally {
-    if (browser) {
-      await browser.close().catch(() => {});
-    }
+    res.status(500).send("Failed to generate receipt");
   }
 };
