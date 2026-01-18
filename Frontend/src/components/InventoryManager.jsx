@@ -34,25 +34,33 @@ const InventoryManager = () => {
   }, []);
 
   // ✅ Fetch all products
-  const fetchProducts = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .order("id", { ascending: true });
-      if (error) throw error;
-      setProducts(data);
-    } catch (err) {
-      console.error("Error fetching products:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+ const fetchProducts = async () => {
+  if (!userId) return;
 
-  useEffect(() => {
+  setLoading(true);
+  try {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("user_id", userId)
+      .order("id", { ascending: true });
+
+    if (error) throw error;
+    setProducts(data);
+  } catch (err) {
+    console.error("Error fetching products:", err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+useEffect(() => {
+  if (userId) {
     fetchProducts();
-  }, []);
+  }
+}, [userId]);
+
 
   // ✅ Handle form input
   const handleChange = (e) => {
@@ -86,14 +94,14 @@ const InventoryManager = () => {
         if (error) throw error;
       } else {
         // Insert new product
-        const { error } = await supabase.from("products").insert([
-          {
-            name: form.name,
-            category: form.category,
-            quantity: form.quantity,
-            price: form.price,
-          },
-        ]);
+        const { error } = await supabase.from("products").insert([{
+  user_id: userId,
+  name: form.name,
+  category: form.category,
+  quantity: form.quantity,
+  price: form.price,
+}]);
+
         if (error) throw error;
       }
       setForm({ id: null, name: "", category: "", quantity: 0, price: 0 });

@@ -1,9 +1,21 @@
-import React, { useEffect, useState, useMemo, forwardRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  forwardRef,
+  useCallback,
+} from "react";
 import supabase from "../lib/supabaseClient";
 
 // Helper array for displaying day names
 const dayNames = [
-  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
 ];
 
 // Initial state for the form, used for creation and resetting
@@ -31,7 +43,9 @@ const OfferManager = () => {
   const [userId, setUserId] = useState(null);
   const [message, setMessage] = useState("");
 
-  // ✅ Authenticate user using Supabase getUser
+  // ----------------------------------------------------
+  // AUTHENTICATION
+  // ----------------------------------------------------
   useEffect(() => {
     const fetchUser = async () => {
       const {
@@ -51,32 +65,96 @@ const OfferManager = () => {
         setMessage("❌ Authentication required to manage offers.");
       }
     };
+
     fetchUser();
   }, []);
 
-  // --- NoKeyboardInput (for UI consistency) ---
-  const NoKeyboardInput = forwardRef(({ value, onClick, placeholder, className }, ref) => (
-    <input
-      ref={ref}
-      value={value || ""}
-      onClick={(e) => {
-        e.preventDefault();
-        onClick?.(e);
-      }}
-      onFocus={(e) => e.target.blur()}
-      readOnly
-      data-no-keyboard
-      placeholder={placeholder}
-      className={className}
-    />
-  ));
+  // ----------------------------------------------------
+  // NO KEYBOARD INPUT (UI CONSISTENCY)
+  // ----------------------------------------------------
+  const NoKeyboardInput = forwardRef(
+    ({ value, onClick, placeholder, className }, ref) => (
+      <input
+        ref={ref}
+        value={value || ""}
+        onClick={(e) => {
+          e.preventDefault();
+          onClick?.(e);
+        }}
+        onFocus={(e) => e.target.blur()}
+        readOnly
+        data-no-keyboard
+        placeholder={placeholder}
+        className={className}
+      />
+    )
+  );
 
+  // ----------------------------------------------------
+  // FETCH PRODUCTS (USER SCOPED)
+  // ----------------------------------------------------
+  const fetchProducts = useCallback(async () => {
+    if (!userId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("user_id", userId)
+        .order("name");
+
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+    }
+  }, [userId]);
+
+  // ----------------------------------------------------
+  // FETCH OFFERS (USER SCOPED)
+  // ----------------------------------------------------
+  const fetchOffers = useCallback(async () => {
+    if (!userId) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("offers")
+        .select("*")
+        .eq("user_id", userId)
+        .order("id", { ascending: true });
+
+      if (error) throw error;
+      setOffers(data || []);
+    } catch (err) {
+      console.error("Error fetching offers:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  // ----------------------------------------------------
+  // INITIAL DATA LOAD (AFTER AUTH)
+  // ----------------------------------------------------
+  useEffect(() => {
+    if (userId) {
+      fetchOffers();
+      fetchProducts();
+    }
+  }, [userId, fetchOffers, fetchProducts]);
+
+  // ----------------------------------------------------
+  // FILTERED PRODUCTS (SEARCH)
+  // ----------------------------------------------------
   const filteredProducts = useMemo(() => {
     return products.filter((p) =>
       p.name.toLowerCase().includes(productSearch.toLowerCase())
     );
   }, [productSearch, products]);
 
+  // ----------------------------------------------------
+  // PRODUCT SELECTION LOGIC
+  // ----------------------------------------------------
   const toggleProduct = (id) => {
     setForm((prev) => {
       const alreadySelected = prev.product_ids.includes(id);
@@ -89,51 +167,29 @@ const OfferManager = () => {
     });
   };
 
-  // Fetch offers
-  const fetchOffers = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("offers")
-        .select("*")
-        .order("id", { ascending: true });
-      if (error) throw error;
-      setOffers(data);
-    } catch (err) {
-      console.error("Error fetching offers:", err);
-    } finally {
-      setLoading(false);
-    }
+  // ✅ SELECT ALL FILTERED PRODUCTS
+  const selectAllFilteredProducts = () => {
+    setForm((prev) => {
+      const ids = filteredProducts.map((p) => p.id);
+      const merged = new Set([...prev.product_ids, ...ids]);
+      return { ...prev, product_ids: Array.from(merged) };
+    });
   };
 
-  // Fetch products for multi-select
-  const fetchProducts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .order("name");
-      if (error) throw error;
-      setProducts(data);
-    } catch (err) {
-      console.error("Error fetching products:", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchOffers();
-    fetchProducts();
-  }, []);
-
-  // Handle form inputs
+  // ----------------------------------------------------
+  // HANDLE FORM INPUTS
+  // ----------------------------------------------------
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Create or update offer
+  // ----------------------------------------------------
+  // CREATE / UPDATE OFFER
+  // ----------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!userId) {
       setMessage("❌ Please log in before creating or editing offers.");
       return;
@@ -141,6 +197,7 @@ const OfferManager = () => {
 
     try {
       const payload = {
+        user_id: userId,
         name: form.name,
         description: form.description,
         product_ids: form.product_ids,
@@ -177,6 +234,9 @@ const OfferManager = () => {
     }
   };
 
+  // ----------------------------------------------------
+  // EDIT / DELETE
+  // ----------------------------------------------------
   const handleEdit = (offer) => {
     setForm({
       id: offer.id,
@@ -208,7 +268,9 @@ const OfferManager = () => {
     o.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // --- UI ---
+  // ----------------------------------------------------
+  // UI
+  // ----------------------------------------------------
   return (
     <div className="flex flex-col bg-background text-foreground transition-colors duration-300 p-4 rounded-lg shadow-md">
       <h2 className="text-xl font-bold mb-4">Offer Manager</h2>
@@ -217,7 +279,6 @@ const OfferManager = () => {
         <p className="mb-4 text-center text-sm text-red-500">{message}</p>
       )}
 
-      {/* Block actions if not authenticated */}
       {!userId ? (
         <p className="text-center text-muted-foreground">
           Please log in to manage offers.
@@ -238,6 +299,7 @@ const OfferManager = () => {
               className="p-2 rounded border border-border bg-background text-foreground"
               required
             />
+
             <textarea
               name="description"
               value={form.description}
@@ -252,13 +314,23 @@ const OfferManager = () => {
               <label className="block text-sm mb-2 font-medium">
                 Add Products to Offer
               </label>
+
               <input
                 type="text"
                 placeholder="Search products..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                className="w-full p-2 mb-2 rounded border border-border bg-background text-foreground focus:ring-2 focus:ring-accent focus:outline-none"
+                className="w-full p-2 mb-2 rounded border border-border bg-background text-foreground"
               />
+
+              <button
+                type="button"
+                onClick={selectAllFilteredProducts}
+                className="mb-2 px-3 py-1 text-sm bg-accent text-accent-foreground rounded"
+              >
+                Select all filtered products
+              </button>
+
               <div className="max-h-40 overflow-y-auto border border-border rounded-md p-2 bg-muted/30">
                 {filteredProducts.length > 0 ? (
                   filteredProducts.map((product) => (
@@ -303,6 +375,7 @@ const OfferManager = () => {
                   <option value="fixed">Fixed Amount (₹)</option>
                 </select>
               </div>
+
               <div className="flex-1">
                 <label className="block text-sm mb-1">Discount Value</label>
                 <input
@@ -310,20 +383,17 @@ const OfferManager = () => {
                   name="discount_value"
                   value={form.discount_value}
                   onChange={handleChange}
-                  placeholder="e.g., 50"
                   className="p-2 rounded border border-border bg-background text-foreground w-full"
                   required
                 />
               </div>
             </div>
 
-            {/* --- Offer Toggles --- */}
+            {/* --- Toggles --- */}
             <div className="flex gap-4 p-3 bg-muted/30 rounded-md">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  name="is_recurring"
-                  data-no-keyboard
                   checked={form.is_recurring}
                   onChange={(e) =>
                     setForm((prev) => ({
@@ -331,15 +401,13 @@ const OfferManager = () => {
                       is_recurring: e.target.checked,
                     }))
                   }
-                  className="accent-accent h-4 w-4"
                 />
                 <span>Recurring Weekly Offer?</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+
+              <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  name="is_active"
-                  data-no-keyboard
                   checked={form.is_active}
                   onChange={(e) =>
                     setForm((prev) => ({
@@ -347,170 +415,160 @@ const OfferManager = () => {
                       is_active: e.target.checked,
                     }))
                   }
-                  className="accent-accent h-4 w-4"
                 />
                 <span>Is Active?</span>
               </label>
             </div>
 
             {form.is_recurring ? (
-              <div>
-                <label className="block text-sm mb-1">Day of the Week</label>
-                <select
-                  name="day_of_week"
-                  value={form.day_of_week}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      day_of_week: e.target.value,
-                    }))
-                  }
-                  className="p-2 rounded border border-border bg-background text-foreground w-full"
-                  required
-                >
-                  <option value="">Select a day...</option>
-                  <option value="0">Sunday</option>
-                  <option value="1">Monday</option>
-                  <option value="2">Tuesday</option>
-                  <option value="3">Wednesday</option>
-                  <option value="4">Thursday</option>
-                  <option value="5">Friday</option>
-                  <option value="6">Saturday</option>
-                </select>
-              </div>
+              <select
+                value={form.day_of_week}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    day_of_week: e.target.value,
+                  }))
+                }
+                className="p-2 rounded border"
+                required
+              >
+                <option value="">Select a day...</option>
+                {dayNames.map((d, i) => (
+                  <option key={i} value={i}>
+                    {d}
+                  </option>
+                ))}
+              </select>
             ) : (
               <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    name="start_date"
-                    value={form.start_date}
-                    onChange={handleChange}
-                    className="p-2 rounded border border-border bg-background text-foreground w-full"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm mb-1">End Date</label>
-                  <input
-                    type="date"
-                    name="end_date"
-                    value={form.end_date}
-                    onChange={handleChange}
-                    className="p-2 rounded border border-border bg-background text-foreground w-full"
-                  />
-                </div>
+                <input
+                  type="date"
+                  name="start_date"
+                  value={form.start_date}
+                  onChange={handleChange}
+                  className="p-2 rounded border w-full"
+                />
+                <input
+                  type="date"
+                  name="end_date"
+                  value={form.end_date}
+                  onChange={handleChange}
+                  className="p-2 rounded border w-full"
+                />
               </div>
             )}
 
-            <button
-              type="submit"
-              className="mt-2 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
-            >
+            <button className="px-4 py-2 bg-primary text-white rounded">
               {form.id ? "Update Offer" : "Add Offer"}
             </button>
           </form>
 
           {/* --- Offers Table --- */}
-          {loading ? (
-            <p className="text-center mt-6">Loading offers...</p>
-          ) : (
-            <div className="overflow-x-auto w-full mt-4">
-              <div className="min-w-[1200px] inline-block align-middle">
-                <table className="min-w-full border-collapse border border-border rounded-lg bg-card text-foreground">
-                  <thead>
-                    <tr className="border-b border-border bg-muted">
-                      <th className="p-3 text-left whitespace-nowrap">Name</th>
-                      <th className="p-3 text-left whitespace-nowrap">
-                        Discount
-                      </th>
-                      <th className="p-3 text-left whitespace-nowrap">
-                        Schedule
-                      </th>
-                      <th className="p-3 text-left whitespace-nowrap">
-                        Status
-                      </th>
-                      <th className="p-3 text-left whitespace-nowrap">
-                        Products
-                      </th>
-                      <th className="p-3 text-left whitespace-nowrap">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOffers.map((offer) => (
-                      <tr
-                        key={offer.id}
-                        className="border-b border-border hover:bg-muted/30"
-                      >
-                        <td className="p-3 align-top">
-                          <div className="font-medium">{offer.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {offer.description}
-                          </div>
-                        </td>
-                        <td className="p-3 align-top whitespace-nowrap font-medium">
-                          {offer.discount_value}
-                          {offer.discount_type === "percentage" ? "%" : "₹"}
-                        </td>
-                        <td className="p-3 align-top whitespace-nowrap">
-                          {offer.is_recurring ? (
-                            <span className="font-medium">
-                              Every {dayNames[offer.day_of_week]}
-                            </span>
-                          ) : (
-                            <span>
-                              {offer.start_date || "Starts immediately"} <br />
-                              to {offer.end_date || "No end date"}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3 align-top">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              offer.is_active
-                                ? "bg-green-100 text-green-800"
-                                : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {offer.is_active ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td className="p-3 align-top max-w-xs">
-                          {offer.product_ids
-                            ?.map(
-                              (pid) =>
-                                products.find((p) => p.id === pid)?.name
-                            )
-                            .filter(Boolean)
-                            .join(", ") || (
-                            <span className="text-muted-foreground">
-                              All Products
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3 align-top flex gap-2 whitespace-nowrap">
-                          <button
-                            onClick={() => handleEdit(offer)}
-                            className="px-3 py-1 bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(offer.id)}
-                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+         {loading ? (
+  <p className="text-center mt-6 text-muted-foreground">
+    Loading offers…
+  </p>
+) : filteredOffers.length === 0 ? (
+  <p className="text-center mt-6 text-muted-foreground">
+    No offers found
+  </p>
+) : (
+  <div className="overflow-x-auto mt-6">
+    <table className="min-w-full border border-border rounded-lg bg-card shadow-sm">
+      <thead>
+        <tr className="bg-muted/50 border-b border-border">
+          <th className="px-4 py-3 text-left text-sm font-semibold">
+            Offer
+          </th>
+          <th className="px-4 py-3 text-left text-sm font-semibold">
+            Discount
+          </th>
+          <th className="px-4 py-3 text-left text-sm font-semibold">
+            Schedule
+          </th>
+          <th className="px-4 py-3 text-left text-sm font-semibold">
+            Status
+          </th>
+          <th className="px-4 py-3 text-right text-sm font-semibold">
+            Actions
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {filteredOffers.map((offer) => (
+          <tr
+            key={offer.id}
+            className="border-b border-border hover:bg-muted/30 transition-colors"
+          >
+            {/* Offer Name */}
+            <td className="px-4 py-3">
+              <div className="font-medium">{offer.name}</div>
+              {offer.description && (
+                <div className="text-sm text-muted-foreground line-clamp-2">
+                  {offer.description}
+                </div>
+              )}
+            </td>
+
+            {/* Discount */}
+            <td className="px-4 py-3 whitespace-nowrap font-medium">
+              {offer.discount_value}
+              {offer.discount_type === "percentage" ? "%" : "₹"}
+            </td>
+
+            {/* Schedule */}
+            <td className="px-4 py-3 whitespace-nowrap text-sm">
+              {offer.is_recurring ? (
+                <span className="font-medium">
+                  Every {dayNames[offer.day_of_week]}
+                </span>
+              ) : (
+                <span>
+                  {offer.start_date || "Starts now"} <br />
+                  <span className="text-muted-foreground">
+                    to {offer.end_date || "No end date"}
+                  </span>
+                </span>
+              )}
+            </td>
+
+            {/* Status */}
+            <td className="px-4 py-3">
+              <span
+                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                  offer.is_active
+                    ? "bg-green-100 text-green-800"
+                    : "bg-gray-100 text-gray-800"
+                }`}
+              >
+                {offer.is_active ? "Active" : "Inactive"}
+              </span>
+            </td>
+
+            {/* Actions */}
+            <td className="px-4 py-3 text-right whitespace-nowrap">
+              <button
+                onClick={() => handleEdit(offer)}
+                className="mr-2 px-3 py-1 text-sm rounded-md bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDelete(offer.id)}
+                className="px-3 py-1 text-sm rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+              >
+                Delete
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)}
+
+          
         </>
       )}
     </div>

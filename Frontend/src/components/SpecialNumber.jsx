@@ -73,40 +73,55 @@ export default function SpecialNumber() {
     };
   }, []);
 
-  // --------------------------------------------------------------------
-  // 2) Fetch today's number WHEN session is ready
-  // --------------------------------------------------------------------
-  const loadTodayNumber = useCallback(async () => {
-    if (!sessionReady || !sessionUserId) return;
+// --------------------------------------------------------------------
+// 2) Fetch today's special number (fallback to last entry)
+// --------------------------------------------------------------------
+const loadTodayNumber = useCallback(async () => {
+  if (!sessionReady || !sessionUserId) return;
 
-    setFetchingToday(true);
-    setError(null);
+  setFetchingToday(true);
+  setError(null);
 
-    try {
-      const today = getTodayDate();
+  try {
+    const today = getTodayDate();
 
-      const { data, error: fetchErr } = await supabase
-        .from("special_numbers")
-        .select("number")
-        .eq("date", today)
-        .eq("user_id", sessionUserId)
-        .maybeSingle();
+    // 1️⃣ Try: today's special number
+    const { data: todayData, error: todayErr } = await supabase
+      .from("special_numbers")
+      .select("number")
+      .eq("user_id", sessionUserId)
+      .eq("date", today)
+      .maybeSingle();
 
-      if (fetchErr) {
-        console.error("Failed to fetch today's special number", fetchErr);
-        setError(fetchErr.message || "Fetch failed");
-        setTodayNumber(null);
-      } else {
-        setTodayNumber(data?.number ?? null);
-      }
-    } catch (err) {
-      console.error("Unexpected error fetching today's number", err);
-      setError(err.message || String(err));
-      setTodayNumber(null);
-    } finally {
-      setFetchingToday(false);
+    if (todayErr) throw todayErr;
+
+    if (todayData?.number != null) {
+      setTodayNumber(todayData.number);
+      return;
     }
-  }, [sessionReady, sessionUserId]);
+
+    // 2️⃣ Fallback: last entered special number
+    const { data: lastData, error: lastErr } = await supabase
+      .from("special_numbers")
+      .select("number")
+      .eq("user_id", sessionUserId)
+      .order("created_at", { ascending: false }) // or "id"
+      .limit(1)
+      .maybeSingle();
+
+    if (lastErr) throw lastErr;
+
+    setTodayNumber(lastData?.number ?? null);
+
+  } catch (err) {
+    console.error("Error loading special number", err);
+    setError(err?.message || "Failed to load special number");
+    setTodayNumber(null);
+  } finally {
+    setFetchingToday(false);
+  }
+}, [sessionReady, sessionUserId]);
+
 
   useEffect(() => {
     // load when session becomes ready

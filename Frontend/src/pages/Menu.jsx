@@ -78,61 +78,111 @@ const Menu = () => {
   const [todaysSpecialNumber, setTodaysSpecialNumber] = useState(null);
   const [isSpecialActive, setIsSpecialActive] = useState(false);
   const [activeOffers, setActiveOffers] = useState([]);
-
+  
   /* -------------------------------------------------
-     FETCH MENU (EDGE FUNC)
+  FETCH MENU
   ---------------------------------------------------*/
   const fetchMenu = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("get-todays-menu");
       if (error) throw error;
-
+      
       const formatted =
-        data?.todays_menu?.map((i) => ({
-          id: i.id,
-          product_id: i.product_id,
-          name: i.name || "Unnamed Product",
-          category: i.category || "Uncategorized",
-          price: Number(i.price) || 0,
-          quantity: i.quantity ?? 0,
-          is_available: i.is_available ?? true
+      data?.todays_menu?.map((i) => ({
+        id: i.id,
+        product_id: i.product_id,
+        name: i.name || "Unnamed Product",
+        category: i.category || "Uncategorized",
+        price: Number(i.price) || 0,
+        quantity: i.quantity ?? 0,
+        is_available: i.is_available ?? true
         })) || [];
-
-      setMenuItems(formatted);
-    } catch (err) {
-      console.error(err);
-      alert("Menu fetch failed.");
-    }
-    setLoading(false);
-  }, []);
-  console.log("Menu items:", menuItems);
-
-  /* -------------------------------------------------
-     FETCH SPECIAL NUMBER
-  ---------------------------------------------------*/
-
-  const fetchSpecialNumber = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
+        
+        setMenuItems(formatted);
+      } catch (err) {
+        console.error(err);
+        alert("Menu fetch failed.");
+      }
+      setLoading(false);
+    }, []);
+    
+    /* -------------------------------------------------
+    FETCH SPECIAL NUMBER (LAST ENTRY)
+    ---------------------------------------------------*/
+    const fetchSpecialNumber = useCallback(async () => {
+      try {
+        const { data, error } = await supabase
         .from("special_numbers")
         .select("number")
         .order("id", { ascending: false })
         .limit(1)
         .maybeSingle();
-
-      if (error) {
-        console.error("Special number error:", error);
-        return;
+        
+        if (error) {
+          console.error("Special number error:", error);
+          return;
+        }
+        
+        if (data) {
+          setTodaysSpecialNumber(data.number);
+        }
+      } catch (err) {
+        console.error("Fetch special number failed:", err);
       }
+    }, []);
+    
+    /* -------------------------------------------------
+       BILL TOTAL (DERIVED)
+    ---------------------------------------------------*/
+    const billTotal = useMemo(() => {
+      return billItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+    }, [billItems]);
 
-      if (data) {
-        setTodaysSpecialNumber(data.number);
-      }
-    } catch (err) {
-      console.error("Fetch special number failed:", err);
-    }
-  }, []);
+    /* -------------------------------------------------
+   FILTERED MENU (DERIVED)
+---------------------------------------------------*/
+const filteredMenu = useMemo(
+  () =>
+    menuItems.filter((item) =>
+      item.name.toLowerCase().includes(search.toLowerCase())
+    ),
+  [menuItems, search]
+);
+
+/* -------------------------------------------------
+   BILL ITEM QUANTITY HELPER
+---------------------------------------------------*/
+const getQuantity = useCallback(
+  (menuItemId) =>
+    billItems.find((b) => b.menu_item_id === menuItemId)?.quantity || 0,
+  [billItems]
+);
+/* -------------------------------------------------
+    SUGGESTED AMOUNTS FOR PAYMENT
+  ---------------------------------------------------*/
+
+
+
+const suggestedAmounts = useMemo(() => {
+  if (billTotal <= 0) return [];
+
+  const roundUp = (n, step) => Math.ceil(n / step) * step;
+
+  const next10 = roundUp(billTotal, 10);
+  const next50 = roundUp(billTotal, 50);
+  const next100 = roundUp(billTotal, 100);
+
+  // remove duplicates & keep order
+  return [...new Set([next10, next50, next100])];
+}, [billTotal]);
+
+
+
+
 
 
   /* -------------------------------------------------
@@ -155,7 +205,7 @@ const Menu = () => {
         offer.is_recurring
           ? offer.day_of_week === dow
           : (!offer.start_date || offer.start_date <= today) &&
-          (!offer.end_date || offer.end_date >= today)
+            (!offer.end_date || offer.end_date >= today)
       );
 
       setActiveOffers(filtered);
@@ -165,7 +215,7 @@ const Menu = () => {
   }, []);
 
   /* -------------------------------------------------
-     BILL / MENU LOGIC
+     BILL LOGIC
   ---------------------------------------------------*/
   const addToBill = useCallback((item) => {
     setBillItems((prev) => {
@@ -195,8 +245,8 @@ const Menu = () => {
       qty <= 0
         ? prev.filter((b) => b.menu_item_id !== id)
         : prev.map((b) =>
-          b.menu_item_id === id ? { ...b, quantity: qty } : b
-        )
+            b.menu_item_id === id ? { ...b, quantity: qty } : b
+          )
     );
   }, []);
 
@@ -205,42 +255,32 @@ const Menu = () => {
     [updateBillQuantity]
   );
 
-  const removeFromMenu = async (menuId) => {
-    try {
-      const { error } = await supabase.functions.invoke("remove-menu", {
-        body: { id: menuId }
-      });
-      if (error) throw error;
-      setMenuItems((prev) => prev.filter((m) => m.id !== menuId));
-    } catch (err) {
-      alert("Cannot remove item.");
-    }
-  };
-
   /* -------------------------------------------------
-     DERIVED
+     DERIVED TOTALS
   ---------------------------------------------------*/
   const subtotal = useMemo(
-    () =>
-      billItems.reduce(
-        (sum, i) => sum + i.price * i.quantity,
-        0
-      ),
+    () => billItems.reduce((s, i) => s + i.price * i.quantity, 0),
     [billItems]
   );
 
   const {
     totalOfferDiscount,
-    appliedOfferNames,
-    appliedOfferIds
+    appliedOfferNames
   } = useMemo(
     () => calculateOfferDiscount(billItems, activeOffers),
     [billItems, activeOffers]
   );
 
-  const finalTotal = specialDiscount
-    ? 0
-    : subtotal - totalOfferDiscount;
+  const effectiveDiscount = specialDiscount
+    ? subtotal
+    : totalOfferDiscount;
+
+  const finalTotal = Math.max(0, subtotal - effectiveDiscount);
+
+  const receiptAppliedOffers = useMemo(() => {
+    if (specialDiscount) return ["Special Number Discount"];
+    return appliedOfferNames;
+  }, [specialDiscount, appliedOfferNames]);
 
   const totalPaid = cashPaid + upiPaid;
   const pendingAmount = Math.max(0, finalTotal - totalPaid);
@@ -248,96 +288,57 @@ const Menu = () => {
     totalPaid > finalTotal ? totalPaid - finalTotal : 0;
 
   /* -------------------------------------------------
-     PAYMENT LOGIC
+     PAYMENT
   ---------------------------------------------------*/
   const handlePayment = async () => {
-    if (billItems.length === 0) return alert("No items.");
+    if (!billItems.length) return alert("No items.");
 
     try {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData?.user;
       if (!user) throw new Error("Not authenticated.");
 
-      // -------------------------------
-      // STEP 1: CREATE SALE TRANSACTION
-      // -------------------------------
       const { data: sale, error: saleError } = await supabase
         .from("transactions")
         .insert({
           user_id: user.id,
           transaction_type: "SALE",
-          total_amount: Number((subtotal - totalOfferDiscount).toFixed(2)),
-          discount: Number(totalOfferDiscount.toFixed(2)),
-          cash_paid: Number(cashPaid),
-          upi_paid: Number(upiPaid),
+          total_amount: finalTotal,
+          discount: effectiveDiscount,
+          cash_paid: cashPaid,
+          upi_paid: upiPaid
         })
         .select()
         .single();
 
-      if (saleError) {
-        console.error("SALE INSERT ERROR:", saleError);
-        alert(saleError.message);
-        return;
-      }
-
+      if (saleError) throw saleError;
 
       setCurrentBillNumber(sale.daily_bill_no);
 
-      // ------------------------------------
-      // STEP 2: INSERT LINE ITEMS (SOURCE OF TRUTH)
-      // ------------------------------------
-      const itemsPayload = billItems.map((b) => ({
-        transaction_id: sale.id,
-        product_id: b.product_id,
-        quantity: b.quantity,
-        unit_price: b.price,
-        item_type: "SALE",
-        user_id: user.id,
-      }));
+      await supabase.from("transaction_items").insert(
+        billItems.map((b) => ({
+          transaction_id: sale.id,
+          product_id: b.product_id,
+          quantity: b.quantity,
+          unit_price: b.price,
+          item_type: "SALE",
+          user_id: user.id
+        }))
+      );
 
-      const { error: itemsError } = await supabase
-        .from("transaction_items")
-        .insert(itemsPayload);
+      const isSpecial =
+        todaysSpecialNumber &&
+        sale.daily_bill_no === todaysSpecialNumber;
 
-      console.log("ITEMS PAYLOAD:", itemsPayload);
-      console.log("ITEMS ERROR:", itemsError);
-
-      if (itemsError) throw itemsError;
-
-
-      setCurrentBillNumber(sale.daily_bill_no);
-
-      const special =
-        todaysSpecialNumber && sale.daily_bill_no === todaysSpecialNumber;
-      if (special) {
+      if (isSpecial) {
         setSpecialDiscount(true);
         setIsSpecialActive(true);
-        import("canvas-confetti").then(({ default: confetti }) =>
-          confetti({ particleCount: 200, spread: 80 })
-        );
-
-        await supabase
-          .from("transactions")
-          .update({
-            total_amount: 0,
-            discount: Number(subtotal.toFixed(2)),
-          })
-          .eq("id", sale.id);
-
       }
-
-
-
-      // --------------------------
-      // PRINT INVOICE
-      // --------------------------
-
-
-
 
       const invoiceData = {
         shopName: "BABUJI CHAAY",
-        address: "Babuji Chaay, Shop no. 7, K.D. Empire, Mira Road (E), Thane - 401107",
+        address:
+          "Babuji Chaay, Shop no. 7, K.D. Empire, Mira Road (E), Thane - 401107",
         phone: "+91 9076165666",
         billNo: sale.daily_bill_no,
         date: new Date().toLocaleString(),
@@ -345,91 +346,44 @@ const Menu = () => {
           qty: b.quantity,
           name: b.name,
           price: b.price,
-          amt: b.price * b.quantity,
+          amt: b.price * b.quantity
         })),
         subtotal,
-        discount: totalOfferDiscount,
-        appliedOffers: appliedOfferNames,
+        discount: effectiveDiscount,
+        appliedOffers: receiptAppliedOffers,
         cashPaid,
         upiPaid,
-        total: finalTotal,
+        total: finalTotal
       };
 
       const printWindow = window.open("", "PRINT", "width=300,height=600");
       printWindow.document.write(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <title>Invoice - ${invoiceData.billNo}</title>
-        <style>
-          body { font-family: monospace; padding: 0; margin: 0; color: #000; background: #fff; max-width: 300px; margin-left: auto; margin-right: auto; }
-          .invoice-container { max-width: 300px; margin: auto; padding: 10px; line-height: 1.4; }
-          h1 { font-size: 16px; text-align: center; margin: 5px 0 2px 0; font-weight: bold; }
-          .header-info { text-align: center; font-size: 10px; border-bottom: 1px dashed #999; padding-bottom: 5px; margin-bottom: 5px; }
-          .bill-meta { font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px dashed #999; padding-bottom: 5px; margin-bottom: 5px; }
-          table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 5px; }
-          th, td { text-align: left; padding: 2px 0; }
-          th { border-bottom: 1px dashed #999; font-weight: bold; }
-          td:nth-child(2) { width: 45%; } 
-          td:last-child { text-align: right; } 
-          td:nth-child(4) { text-align: right; } 
-          .totals { font-size: 11px; border-top: 1px dashed #999; padding-top: 5px; }
-          .totals div { display: flex; justify-content: space-between; margin: 2px 0; }
-          .discount-row { color: #000; font-weight: normal; }
-          .offers-list { font-size: 9px; margin-top: 2px; color: #000; text-align: right; }
-          .total { font-weight: bold; font-size: 12px; border-top: 1px dashed #999; padding-top: 5px; margin-top: 5px !important; }
-          footer { text-align: center; font-size: 10px; margin-top: 10px; font-weight: normal; color: #000; border-top: 1px dashed #999; padding-top: 5px; }
-        </style>
-      </head>
-      <body>
-        <div class="invoice-container">
-          <h1>${invoiceData.shopName}</h1>
-          <div class="header-info">
-            ${invoiceData.address}<br>Ph: ${invoiceData.phone}
-          </div>
-          <div class="bill-meta">
-            <span>Bill No: ${invoiceData.billNo}</span>
-            <span>Date: ${invoiceData.date}</span>
-          </div>
-          <table>
-            <thead><tr><th>Qty</th><th>Item</th><th>Price</th><th>Amt</th></tr></thead>
-            <tbody>
-              ${invoiceData.items
-          .map(
-            (item) =>
-              `<tr>
-                      <td>${item.qty}</td>
-                      <td>${item.name}</td>
-                      <td>${item.price.toFixed(2)}</td>
-                      <td>${item.amt.toFixed(2)}</td>
-                    </tr>`
-          )
-          .join("")}
-            </tbody>
-          </table>
-          <div class="totals">
-            <div><span>SUBTOTAL</span><span>₹ ${invoiceData.subtotal.toFixed(2)}</span></div>
-            ${invoiceData.discount > 0
-          ? `<div class="discount-row"><span>Discount Deducted</span><span>-₹ ${invoiceData.discount.toFixed(2)}</span></div>
-                   <div class="offers-list">Offers: ${invoiceData.appliedOffers.join(', ') || 'N/A'}</div>`
-          : ""
-        }
-            <div><span>CASH</span><span>₹ ${invoiceData.cashPaid.toFixed(2)}</span></div>
-            <div><span>UPI</span><span>₹ ${invoiceData.upiPaid.toFixed(2)}</span></div>
-            <div class="total"><span>TOTAL PAID</span><span>₹ ${invoiceData.total.toFixed(2)}</span></div>
-          </div>
-          <footer>*** Thank You. Visit Again ***</footer>
-        </div>
-      </body>
-      </html>
-    `);
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Invoice</title></head>
+<body style="font-family:monospace">
+<h3 style="text-align:center">${invoiceData.shopName}</h3>
+<p style="text-align:center">${invoiceData.address}<br/>${invoiceData.phone}</p>
+<hr/>
+<p>Bill #${invoiceData.billNo}<br/>${invoiceData.date}</p>
+<hr/>
+${invoiceData.items
+  .map(
+    (i) =>
+      `<div>${i.qty} x ${i.name} = ₹${i.amt.toFixed(2)}</div>`
+  )
+  .join("")}
+<hr/>
+<div>Subtotal: ₹${invoiceData.subtotal.toFixed(2)}</div>
+<div>Discount: -₹${invoiceData.discount.toFixed(2)}</div>
+<div>Offers: ${invoiceData.appliedOffers.join(", ")}</div>
+<div><b>Total: ₹${invoiceData.total.toFixed(2)}</b></div>
+<p style="text-align:center">Thank you</p>
+</body></html>
+`);
       printWindow.document.close();
-      printWindow.focus();
       printWindow.print();
       printWindow.close();
-
-      alert(`Paid! Bill #${sale.daily_bill_no}`);
 
       setTimeout(() => {
         setBillItems([]);
@@ -440,63 +394,25 @@ const Menu = () => {
         setSpecialDiscount(false);
         setCurrentBillNumber(null);
         setIsSpecialActive(false);
-      }, 1500);
+      }, 1000);
     } catch (err) {
       alert(err.message);
     }
   };
 
   /* -------------------------------------------------
-     INITIAL LOAD + REALTIME
+     INIT
   ---------------------------------------------------*/
   useEffect(() => {
     fetchMenu();
     fetchSpecialNumber();
     fetchActiveOffers();
-
-    const channel = supabase
-      .channel("rt-menu")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "todays_menu" },
-        fetchMenu
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
   }, []);
-
-  /* -------------------------------------------------
-     UI HELPERS
-  ---------------------------------------------------*/
-  const filteredMenu = useMemo(
-    () =>
-      menuItems.filter((i) =>
-        i.name.toLowerCase().includes(search.toLowerCase())
-      ),
-    [menuItems, search]
-  );
-
-  const getQuantity = (id) =>
-    billItems.find((b) => b.menu_item_id === id)?.quantity || 0;
-
-  const suggestedAmounts = useMemo(() => {
-    const base = specialDiscount
-      ? 0
-      : subtotal - totalOfferDiscount;
-    const m5 = Math.ceil(base / 5) * 5;
-    return [base, m5, m5 + 5, m5 + 10, 100, 200, 500];
-  }, [subtotal, totalOfferDiscount, specialDiscount]);
 
   /* -------------------------------------------------
      RENDER
   ---------------------------------------------------*/
-  if (loading)
-    return (
-      <p className="text-center text-foreground mt-10">
-        Loading menu...
-      </p>
-    );
+  if (loading) return <p className="text-center mt-10">Loading menu...</p>;
 
   return (
     <div
