@@ -3,15 +3,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import supabase from "@/lib/supabaseClient";
 
-/**
- * Refactored SpecialNumber component.
- * - Waits for session restoration before any REST calls (prevents 406)
- * - Uses a single auth listener + sessionReady flag
- * - Defensive error handling and loading UX
- * - Uses maybeSingle() to avoid throwing when row missing
- * - Ensures user_id sent on upsert matches session user id
- */
-
 export default function SpecialNumber() {
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionUserId, setSessionUserId] = useState(null);
@@ -22,28 +13,18 @@ export default function SpecialNumber() {
   const [fetchingToday, setFetchingToday] = useState(false);
   const [error, setError] = useState(null);
 
-  const getTodayDate = () => new Date().toISOString().split("T")[0];
+  const getTodayDate = () => new Date().toLocaleDateString('en-GB').replace(/\//g, ' / ');
 
-  // --------------------------------------------------------------------
-  // 1) Restore session once and listen to changes
-  // --------------------------------------------------------------------
+  // 1) Session Management
   useEffect(() => {
     let mounted = true;
-
     const start = async () => {
       try {
-        const {
-          data: { session }
-        } = await supabase.auth.getSession();
-
+        const { data: { session } } = await supabase.auth.getSession();
         if (!mounted) return;
-
         if (session?.user?.id) {
           setSessionUserId(session.user.id);
           setSessionReady(true);
-        } else {
-          setSessionUserId(null);
-          setSessionReady(false);
         }
       } catch (err) {
         console.error("session restore failed", err);
@@ -65,174 +46,170 @@ export default function SpecialNumber() {
 
     return () => {
       mounted = false;
-      try {
-        listener.subscription.unsubscribe();
-      } catch (e) {
-        // ignore
-      }
+      listener.subscription.unsubscribe();
     };
   }, []);
 
-// --------------------------------------------------------------------
-// 2) Fetch today's special number (fallback to last entry)
-// --------------------------------------------------------------------
-const loadTodayNumber = useCallback(async () => {
-  if (!sessionReady || !sessionUserId) return;
+  // 2) Data Loading
+  const loadTodayNumber = useCallback(async () => {
+    if (!sessionReady || !sessionUserId) return;
+    setFetchingToday(true);
+    setError(null);
 
-  setFetchingToday(true);
-  setError(null);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const { data: todayData, error: todayErr } = await supabase
+        .from("special_numbers")
+        .select("number")
+        .eq("user_id", sessionUserId)
+        .eq("date", today)
+        .maybeSingle();
 
-  try {
-    const today = getTodayDate();
+      if (todayErr) throw todayErr;
 
-    // 1️⃣ Try: today's special number
-    const { data: todayData, error: todayErr } = await supabase
-      .from("special_numbers")
-      .select("number")
-      .eq("user_id", sessionUserId)
-      .eq("date", today)
-      .maybeSingle();
-
-    if (todayErr) throw todayErr;
-
-    if (todayData?.number != null) {
-      setTodayNumber(todayData.number);
-      return;
+      if (todayData?.number != null) {
+        setTodayNumber(todayData.number);
+      } else {
+        const { data: lastData } = await supabase
+          .from("special_numbers")
+          .select("number")
+          .eq("user_id", sessionUserId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setTodayNumber(lastData?.number ?? null);
+      }
+    } catch (err) {
+      setError("Failed to sync data.");
+    } finally {
+      setFetchingToday(false);
     }
+  }, [sessionReady, sessionUserId]);
 
-    // 2️⃣ Fallback: last entered special number
-    const { data: lastData, error: lastErr } = await supabase
-      .from("special_numbers")
-      .select("number")
-      .eq("user_id", sessionUserId)
-      .order("created_at", { ascending: false }) // or "id"
-      .limit(1)
-      .maybeSingle();
+  useEffect(() => { loadTodayNumber(); }, [loadTodayNumber]);
 
-    if (lastErr) throw lastErr;
-
-    setTodayNumber(lastData?.number ?? null);
-
-  } catch (err) {
-    console.error("Error loading special number", err);
-    setError(err?.message || "Failed to load special number");
-    setTodayNumber(null);
-  } finally {
-    setFetchingToday(false);
-  }
-}, [sessionReady, sessionUserId]);
-
-
-  useEffect(() => {
-    // load when session becomes ready
-    loadTodayNumber();
-  }, [loadTodayNumber]);
-
-  // --------------------------------------------------------------------
-  // 3) Generate random number (1–100)
-  // --------------------------------------------------------------------
+  // 3) Interactions
   const handleGenerate = useCallback(() => {
     setSpecialNumber(Math.floor(Math.random() * 100) + 1);
   }, []);
 
-  // --------------------------------------------------------------------
-  // 4) Save today's number (upsert)
-  // --------------------------------------------------------------------
   const handleSave = useCallback(async () => {
-    if (!sessionReady || !sessionUserId) {
-      alert("Please log in before saving a special number.");
-      return;
-    }
-
+    if (!sessionReady || !sessionUserId) return;
     const num = Number(specialNumber);
-
-    if (!num || num < 1 || num > 100) {
-      alert("Please enter or generate a valid number (1–100).");
-      return;
-    }
+    if (!num || num < 1 || num > 100) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const today = getTodayDate();
-
-      // Make sure we send user_id from the session (single source of truth)
+      const today = new Date().toISOString().split("T")[0];
       const payload = { number: num, date: today, user_id: sessionUserId };
-
       const { data, error: upsertErr } = await supabase
         .from("special_numbers")
         .upsert([payload], { onConflict: "date,user_id" })
         .select()
         .maybeSingle();
 
-      if (upsertErr) {
-        console.error("Upsert failed", upsertErr);
-        setError(upsertErr.message || "Save failed");
-        alert("Failed to save number.");
-        return;
-      }
-
-      // update UI
+      if (upsertErr) throw upsertErr;
       setTodayNumber(data?.number ?? num);
       setSpecialNumber("");
-      alert(`Special number set to ${data?.number ?? num} for ${today}.`);
     } catch (err) {
-      console.error("Unexpected save error", err);
-      setError(err.message || String(err));
-      alert("Failed to save number.");
+      setError("Update failed.");
     } finally {
       setLoading(false);
     }
   }, [specialNumber, sessionReady, sessionUserId]);
 
-  // --------------------------------------------------------------------
-  // UI
-  // --------------------------------------------------------------------
   if (!sessionReady) {
     return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <p className="text-foreground text-lg font-medium">Please log in to set your special number.</p>
+      <div className="flex items-center justify-center min-h-[300px]">
+        <div className="bg-card border-2 border-dashed border-border p-8 rounded-3xl text-center">
+          <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">Access Denied</p>
+          <h2 className="text-xl font-black mt-2">Authentication Required</h2>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-5 bg-background rounded-2xl text-foreground transition-colors duration-300">
-      <h2 className="text-xl font-bold">Set Today’s Special Number</h2>
+    <div className="max-w-md mx-auto py-10 px-4">
+      <div className="bg-card border-2 border-border rounded-[2.5rem] shadow-2xl overflow-hidden">
+        
+        {/* TOP SECTION: DISPLAY */}
+        <div className="p-8 text-center bg-primary text-primary-foreground relative overflow-hidden">
+           {/* Decorative background element */}
+          <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+          
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-70 mb-2">
+            {getTodayDate()}
+          </p>
+          
+          <h2 className="text-xs font-bold uppercase mb-6 opacity-90">Today's Special Number</h2>
+          
+          <div className="flex flex-col items-center justify-center">
+            {fetchingToday ? (
+              <div className="h-24 w-24 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+            ) : (
+              <div className="text-8xl font-black tracking-tighter drop-shadow-lg">
+                {todayNumber ?? "--"}
+              </div>
+            )}
+          </div>
+        </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 space-y-2 sm:space-y-0">
-        <input
-          type="number"
-          min="1"
-          max="100"
-          value={specialNumber}
-          onChange={(e) => {
-            const val = e.target.value;
-            setSpecialNumber(val === "" ? "" : Number(val));
-          }}
-          className="w-full sm:w-32 border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition"
-          placeholder="Number"
-        />
+        {/* BOTTOM SECTION: ACTIONS */}
+        <div className="p-8 space-y-6">
+          <div className="space-y-4">
+            <div className="relative group">
+              <label className="absolute -top-2 left-4 px-2 bg-card text-[10px] font-black uppercase text-primary transition-all group-focus-within:text-primary">
+                Custom Entry
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={specialNumber}
+                onChange={(e) => setSpecialNumber(e.target.value)}
+                placeholder="1 - 100"
+                className="w-full bg-background border-2 border-border p-4 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary transition-colors"
+              />
+            </div>
 
-        <button onClick={handleGenerate} className="w-full sm:w-auto bg-secondary text-secondary-foreground font-medium px-4 py-2 rounded-lg hover:bg-secondary/90 transition">
-          Random Number
-        </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={handleGenerate} 
+                className="flex-1 bg-muted hover:bg-border text-foreground font-black uppercase text-[10px] tracking-widest py-4 rounded-2xl transition-all active:scale-95"
+              >
+                Randomize
+              </button>
+              
+              <button 
+                onClick={handleSave} 
+                disabled={loading || !specialNumber}
+                className="flex-[2] bg-primary text-primary-foreground font-black uppercase text-[10px] tracking-widest py-4 rounded-2xl shadow-lg shadow-primary/30 hover:shadow-xl transition-all active:scale-95 disabled:grayscale disabled:opacity-50 disabled:active:scale-100"
+              >
+                {loading ? "Saving..." : "Lock In Number"}
+              </button>
+            </div>
+          </div>
 
-        <button onClick={handleSave} disabled={loading} className="w-full sm:w-auto bg-primary text-primary-foreground font-medium px-4 py-2 rounded-lg hover:bg-primary/90 transition disabled:opacity-50">
-          {loading ? "Saving..." : "Save Number"}
-        </button>
+          {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs font-bold text-center border border-red-100">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {!todayNumber && !fetchingToday && (
+            <p className="text-[10px] text-center text-muted-foreground font-bold uppercase italic tracking-tighter">
+              No number recorded for this session yet.
+            </p>
+          )}
+        </div>
       </div>
-
-      {fetchingToday ? (
-        <p className="text-sm text-muted-foreground">Loading today's number...</p>
-      ) : todayNumber !== null ? (
-        <p className="text-foreground font-semibold">Today's Special Number: <span className="text-lg font-bold text-accent">{todayNumber}</span></p>
-      ) : (
-        <p className="text-sm text-muted-foreground">You haven't set a special number for today yet.</p>
-      )}
-
-      {error && <p className="text-red-600">{error}</p>}
+      
+      <p className="mt-6 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">
+        Secured by Supabase Single-Source-Auth
+      </p>
     </div>
   );
 }

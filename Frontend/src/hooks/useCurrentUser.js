@@ -20,7 +20,6 @@ export default function useCurrentUser() {
     const fetchUserData = async () => {
       setLoading(true);
       try {
-        // 1️⃣ Get currently logged-in Supabase user
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError) throw userError;
 

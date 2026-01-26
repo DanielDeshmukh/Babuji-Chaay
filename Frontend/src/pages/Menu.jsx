@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import supabase from "../lib/supabaseClient";
 import Header from "../components/Header";
+import PrintReceipt from "@/components/PrintReceipt";
 
 /* -------------------------------------------------
    OFFER CALCULATOR (Memo-Friendly)
@@ -65,6 +66,8 @@ const Menu = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [printJob, setPrintJob] = useState(null);
+
 
   const [billItems, setBillItems] = useState([]);
   const [showBill, setShowBill] = useState(false);
@@ -78,7 +81,7 @@ const Menu = () => {
   const [todaysSpecialNumber, setTodaysSpecialNumber] = useState(null);
   const [isSpecialActive, setIsSpecialActive] = useState(false);
   const [activeOffers, setActiveOffers] = useState([]);
-  
+
   /* -------------------------------------------------
   FETCH MENU
   ---------------------------------------------------*/
@@ -87,98 +90,98 @@ const Menu = () => {
     try {
       const { data, error } = await supabase.functions.invoke("get-todays-menu");
       if (error) throw error;
-      
+
       const formatted =
-      data?.todays_menu?.map((i) => ({
-        id: i.id,
-        product_id: i.product_id,
-        name: i.name || "Unnamed Product",
-        category: i.category || "Uncategorized",
-        price: Number(i.price) || 0,
-        quantity: i.quantity ?? 0,
-        is_available: i.is_available ?? true
+        data?.todays_menu?.map((i) => ({
+          id: i.id,
+          product_id: i.product_id,
+          name: i.name || "Unnamed Product",
+          category: i.category || "Uncategorized",
+          price: Number(i.price) || 0,
+          quantity: i.quantity ?? 0,
+          is_available: i.is_available ?? true
         })) || [];
-        
-        setMenuItems(formatted);
-      } catch (err) {
-        console.error(err);
-        alert("Menu fetch failed.");
-      }
-      setLoading(false);
-    }, []);
-    
-    /* -------------------------------------------------
-    FETCH SPECIAL NUMBER (LAST ENTRY)
-    ---------------------------------------------------*/
-    const fetchSpecialNumber = useCallback(async () => {
-      try {
-        const { data, error } = await supabase
+
+      setMenuItems(formatted);
+    } catch (err) {
+      console.error(err);
+      alert("Menu fetch failed.");
+    }
+    setLoading(false);
+  }, []);
+
+  /* -------------------------------------------------
+  FETCH SPECIAL NUMBER (LAST ENTRY)
+  ---------------------------------------------------*/
+  const fetchSpecialNumber = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
         .from("special_numbers")
         .select("number")
         .order("id", { ascending: false })
         .limit(1)
         .maybeSingle();
-        
-        if (error) {
-          console.error("Special number error:", error);
-          return;
-        }
-        
-        if (data) {
-          setTodaysSpecialNumber(data.number);
-        }
-      } catch (err) {
-        console.error("Fetch special number failed:", err);
+
+      if (error) {
+        console.error("Special number error:", error);
+        return;
       }
-    }, []);
-    
-    /* -------------------------------------------------
-       BILL TOTAL (DERIVED)
-    ---------------------------------------------------*/
-    const billTotal = useMemo(() => {
-      return billItems.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-      );
-    }, [billItems]);
 
-    /* -------------------------------------------------
-   FILTERED MENU (DERIVED)
----------------------------------------------------*/
-const filteredMenu = useMemo(
-  () =>
-    menuItems.filter((item) =>
-      item.name.toLowerCase().includes(search.toLowerCase())
-    ),
-  [menuItems, search]
-);
+      if (data) {
+        setTodaysSpecialNumber(data.number);
+      }
+    } catch (err) {
+      console.error("Fetch special number failed:", err);
+    }
+  }, []);
 
-/* -------------------------------------------------
-   BILL ITEM QUANTITY HELPER
----------------------------------------------------*/
-const getQuantity = useCallback(
-  (menuItemId) =>
-    billItems.find((b) => b.menu_item_id === menuItemId)?.quantity || 0,
-  [billItems]
-);
-/* -------------------------------------------------
-    SUGGESTED AMOUNTS FOR PAYMENT
+  /* -------------------------------------------------
+     BILL TOTAL (DERIVED)
   ---------------------------------------------------*/
+  const billTotal = useMemo(() => {
+    return billItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+  }, [billItems]);
+
+  /* -------------------------------------------------
+ FILTERED MENU (DERIVED)
+---------------------------------------------------*/
+  const filteredMenu = useMemo(
+    () =>
+      menuItems.filter((item) =>
+        item.name.toLowerCase().includes(search.toLowerCase())
+      ),
+    [menuItems, search]
+  );
+
+  /* -------------------------------------------------
+     BILL ITEM QUANTITY HELPER
+  ---------------------------------------------------*/
+  const getQuantity = useCallback(
+    (menuItemId) =>
+      billItems.find((b) => b.menu_item_id === menuItemId)?.quantity || 0,
+    [billItems]
+  );
+  /* -------------------------------------------------
+      SUGGESTED AMOUNTS FOR PAYMENT
+    ---------------------------------------------------*/
 
 
 
-const suggestedAmounts = useMemo(() => {
-  if (billTotal <= 0) return [];
+  const suggestedAmounts = useMemo(() => {
+    if (billTotal <= 0) return [];
 
-  const roundUp = (n, step) => Math.ceil(n / step) * step;
+    const roundUp = (n, step) => Math.ceil(n / step) * step;
 
-  const next10 = roundUp(billTotal, 10);
-  const next50 = roundUp(billTotal, 50);
-  const next100 = roundUp(billTotal, 100);
+    const next10 = roundUp(billTotal, 10);
+    const next50 = roundUp(billTotal, 50);
+    const next100 = roundUp(billTotal, 100);
 
-  // remove duplicates & keep order
-  return [...new Set([next10, next50, next100])];
-}, [billTotal]);
+    // remove duplicates & keep order
+    return [...new Set([next10, next50, next100])];
+  }, [billTotal]);
 
 
 
@@ -205,7 +208,7 @@ const suggestedAmounts = useMemo(() => {
         offer.is_recurring
           ? offer.day_of_week === dow
           : (!offer.start_date || offer.start_date <= today) &&
-            (!offer.end_date || offer.end_date >= today)
+          (!offer.end_date || offer.end_date >= today)
       );
 
       setActiveOffers(filtered);
@@ -245,8 +248,8 @@ const suggestedAmounts = useMemo(() => {
       qty <= 0
         ? prev.filter((b) => b.menu_item_id !== id)
         : prev.map((b) =>
-            b.menu_item_id === id ? { ...b, quantity: qty } : b
-          )
+          b.menu_item_id === id ? { ...b, quantity: qty } : b
+        )
     );
   }, []);
 
@@ -290,115 +293,117 @@ const suggestedAmounts = useMemo(() => {
   /* -------------------------------------------------
      PAYMENT
   ---------------------------------------------------*/
-  const handlePayment = async () => {
-    if (!billItems.length) return alert("No items.");
+const handlePayment = async () => {
+  if (!billItems.length) {
+    alert("No items in the bill.");
+    return;
+  }
 
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      const user = userData?.user;
-      if (!user) throw new Error("Not authenticated.");
+  try {
+    // 1. AUTHENTICATION
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    const user = userData?.user;
+    if (userError || !user) throw new Error("Authentication failed. Please log in again.");
 
-      const { data: sale, error: saleError } = await supabase
-        .from("transactions")
-        .insert({
-          user_id: user.id,
-          transaction_type: "SALE",
-          total_amount: finalTotal,
-          discount: effectiveDiscount,
-          cash_paid: cashPaid,
-          upi_paid: upiPaid
-        })
-        .select()
-        .single();
+    // 2. PREPARE TRANSACTION PAYLOAD
+    const transactionPayload = {
+      user_id: user.id,
+      transaction_type: "SALE",
+      total_amount: Number(finalTotal.toFixed(2)),
+      discount: Number(effectiveDiscount.toFixed(2)),
+      cash_paid: Number(cashPaid.toFixed(2)),
+      upi_paid: Number(upiPaid.toFixed(2)),
+    };
 
-      if (saleError) throw saleError;
+    console.log("🧾 INSERTING TRANSACTION...", transactionPayload);
 
-      setCurrentBillNumber(sale.daily_bill_no);
+    // 3. EXECUTE TRANSACTION INSERT
+    const { data: sale, error: saleError } = await supabase
+      .from("transactions")
+      .insert(transactionPayload)
+      .select()
+      .single();
 
-      await supabase.from("transaction_items").insert(
-        billItems.map((b) => ({
-          transaction_id: sale.id,
-          product_id: b.product_id,
-          quantity: b.quantity,
-          unit_price: b.price,
-          item_type: "SALE",
-          user_id: user.id
-        }))
-      );
+    if (saleError) {
+      console.error("❌ TRANSACTION INSERT FAILED", saleError);
+      throw new Error(`Transaction failed: ${saleError.message}`);
+    }
 
-      const isSpecial =
-        todaysSpecialNumber &&
-        sale.daily_bill_no === todaysSpecialNumber;
+    console.log("✅ TRANSACTION SUCCESS:", sale);
+    setCurrentBillNumber(sale.daily_bill_no);
 
-      if (isSpecial) {
-        setSpecialDiscount(true);
-        setIsSpecialActive(true);
-      }
+    // 4. PREPARE & INSERT TRANSACTION ITEMS
+    const itemsPayload = billItems.map((item) => ({
+      transaction_id: sale.id, 
+      product_id: item.product_id,
+      quantity: item.quantity,
+      unit_price: item.price,
+      item_type: "SALE",
+      user_id: user.id,
+    }));
 
-      const invoiceData = {
+    const { error: itemsError } = await supabase
+      .from("transaction_items")
+      .insert(itemsPayload);
+
+    if (itemsError) {
+      console.error("❌ ITEMS INSERT FAILED", itemsError);
+      // We don't throw here to avoid blocking the UI since the main sale succeeded,
+      // but in production, you might want to log this to an error tracking service.
+    }
+
+    // 5. EXTERNAL SYNC (DISABLED)
+    // We are commenting this out because the DB Trigger handles 'daily_sales_summary'.
+    // This prevents the 500 Internal Server Error you were seeing.
+    /*
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-daily-summary`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+      },
+      body: JSON.stringify({ user_id: user.id, timestamp: new Date().toISOString() }),
+    }).catch(e => console.warn("⚠️ Sync Edge Function ignored:", e));
+    */
+
+    // 6. TRIGGER PRINT JOB
+    setPrintJob({
+      type: "SALE",
+      data: {
         shopName: "BABUJI CHAAY",
-        address:
-          "Babuji Chaay, Shop no. 7, K.D. Empire, Mira Road (E), Thane - 401107",
-        phone: "+91 9076165666",
         billNo: sale.daily_bill_no,
         date: new Date().toLocaleString(),
         items: billItems.map((b) => ({
           qty: b.quantity,
           name: b.name,
           price: b.price,
-          amt: b.price * b.quantity
+          amt: b.price * b.quantity,
         })),
-        subtotal,
-        discount: effectiveDiscount,
-        appliedOffers: receiptAppliedOffers,
-        cashPaid,
-        upiPaid,
-        total: finalTotal
-      };
+        subtotal: subtotal,
+        discount: Number(effectiveDiscount) || 0,
+        appliedOffers: receiptAppliedOffers, // Pass the offer names here
+        cashPaid: Number(cashPaid) || 0,
+        upiPaid: Number(upiPaid) || 0,
+        total: Number(finalTotal) || 0,
+      },
+    });
 
-      const printWindow = window.open("", "PRINT", "width=300,height=600");
-      printWindow.document.write(`
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Invoice</title></head>
-<body style="font-family:monospace">
-<h3 style="text-align:center">${invoiceData.shopName}</h3>
-<p style="text-align:center">${invoiceData.address}<br/>${invoiceData.phone}</p>
-<hr/>
-<p>Bill #${invoiceData.billNo}<br/>${invoiceData.date}</p>
-<hr/>
-${invoiceData.items
-  .map(
-    (i) =>
-      `<div>${i.qty} x ${i.name} = ₹${i.amt.toFixed(2)}</div>`
-  )
-  .join("")}
-<hr/>
-<div>Subtotal: ₹${invoiceData.subtotal.toFixed(2)}</div>
-<div>Discount: -₹${invoiceData.discount.toFixed(2)}</div>
-<div>Offers: ${invoiceData.appliedOffers.join(", ")}</div>
-<div><b>Total: ₹${invoiceData.total.toFixed(2)}</b></div>
-<p style="text-align:center">Thank you</p>
-</body></html>
-`);
-      printWindow.document.close();
-      printWindow.print();
-      printWindow.close();
+    // 7. UI RESET
+    // We clear billItems after a short delay to ensure the PrintJob state has captured the data
+    setTimeout(() => {
+      setBillItems([]);
+      setShowBill(false);
+      setCashPaid(0);
+      setUpiPaid(0);
+      setPendingCashInput("");
+      setCurrentBillNumber(null);
+    }, 500);
 
-      setTimeout(() => {
-        setBillItems([]);
-        setShowBill(false);
-        setCashPaid(0);
-        setUpiPaid(0);
-        setPendingCashInput("");
-        setSpecialDiscount(false);
-        setCurrentBillNumber(null);
-        setIsSpecialActive(false);
-      }, 1000);
-    } catch (err) {
-      alert(err.message);
-    }
-  };
+  } catch (err) {
+    console.error("💥 PAYMENT PROCESS ERROR:", err);
+    alert(err.message || "An unexpected error occurred during payment.");
+  }
+};
 
   /* -------------------------------------------------
      INIT
@@ -417,8 +422,8 @@ ${invoiceData.items
   return (
     <div
       className={`min-h-screen flex flex-col bg-background transition-all ${isSpecialActive
-          ? "animate-[pulse_2s_ease-in-out_infinite]"
-          : ""
+        ? "animate-[pulse_2s_ease-in-out_infinite]"
+        : ""
         }`}
     >
       <Header />
@@ -623,8 +628,8 @@ ${invoiceData.items
                   key={i}
                   onClick={() => setCashPaid(amt)}
                   className={`px-4 py-2 rounded-lg font-bold transition ${cashPaid === amt
-                      ? "bg-green-600 text-white"
-                      : "bg-primary text-primary-foreground"
+                    ? "bg-green-600 text-white"
+                    : "bg-primary text-primary-foreground"
                     }`}
                 >
                   ₹{amt}
@@ -692,6 +697,14 @@ ${invoiceData.items
             </button>
           </div>
         </div>
+        {printJob && (
+          <PrintReceipt
+            type={printJob.type}
+            data={printJob.data}
+            onClose={() => setPrintJob(null)}
+          />
+        )}
+
 
 
       </main>

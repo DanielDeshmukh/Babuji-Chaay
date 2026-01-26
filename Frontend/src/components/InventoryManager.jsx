@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import supabase from "../lib/supabaseClient";
 
 const InventoryManager = () => {
@@ -18,12 +18,10 @@ const InventoryManager = () => {
     price: 0,
   });
 
-  // ✅ Authenticate user with Supabase
+  // AUTHENTICATION
   useEffect(() => {
     const fetchUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
       } else {
@@ -33,36 +31,31 @@ const InventoryManager = () => {
     fetchUser();
   }, []);
 
-  // ✅ Fetch all products
- const fetchProducts = async () => {
-  if (!userId) return;
+  // FETCH PRODUCTS
+  const fetchProducts = useCallback(async () => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("user_id", userId)
+        .order("name", { ascending: true });
 
-  setLoading(true);
-  try {
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .eq("user_id", userId)
-      .order("id", { ascending: true });
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
 
-    if (error) throw error;
-    setProducts(data);
-  } catch (err) {
-    console.error("Error fetching products:", err);
-  } finally {
-    setLoading(false);
-  }
-};
+  useEffect(() => {
+    if (userId) fetchProducts();
+  }, [userId, fetchProducts]);
 
-
-useEffect(() => {
-  if (userId) {
-    fetchProducts();
-  }
-}, [userId]);
-
-
-  // ✅ Handle form input
+  // FORM HANDLING
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({
@@ -71,275 +64,228 @@ useEffect(() => {
     }));
   };
 
-  // ✅ Create or update a product
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!userId) {
-      setMessage("❌ You must be logged in to modify inventory.");
-      return;
-    }
+    if (!userId) return;
 
     try {
-      if (form.id) {
-        // Update existing product
-        const { error } = await supabase
-          .from("products")
-          .update({
-            name: form.name,
-            category: form.category,
-            quantity: form.quantity,
-            price: form.price,
-          })
-          .eq("id", form.id);
-        if (error) throw error;
-      } else {
-        // Insert new product
-        const { error } = await supabase.from("products").insert([{
-  user_id: userId,
-  name: form.name,
-  category: form.category,
-  quantity: form.quantity,
-  price: form.price,
-}]);
+      const payload = {
+        user_id: userId,
+        name: form.name,
+        category: form.category || "Uncategorized",
+        quantity: form.quantity,
+        price: form.price,
+      };
 
-        if (error) throw error;
-      }
+      const { error } = form.id
+        ? await supabase.from("products").update(payload).eq("id", form.id)
+        : await supabase.from("products").insert([payload]);
+
+      if (error) throw error;
+
       setForm({ id: null, name: "", category: "", quantity: 0, price: 0 });
       fetchProducts();
-      setMessage("✅ Product saved successfully!");
+      setMessage("✅ Inventory updated successfully.");
+      setTimeout(() => setMessage(""), 3000);
     } catch (err) {
-      console.error("Error saving product:", err);
       setMessage("❌ Failed to save product.");
     }
   };
 
-  // ✅ Edit product
   const handleEdit = (product) => {
     setForm(product);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ✅ Delete product
   const handleDelete = async (id) => {
-    if (!userId) {
-      setMessage("❌ You must be logged in to delete products.");
-      return;
-    }
-
-    if (!confirm("Are you sure you want to delete this product?")) return;
-    try {
-      const { error } = await supabase.from("products").delete().eq("id", id);
-      if (error) throw error;
-      fetchProducts();
-      setMessage("🗑️ Product deleted successfully.");
-    } catch (err) {
-      console.error("Error deleting product:", err);
-      setMessage("❌ Failed to delete product.");
-    }
+    if (!confirm("Delete this product from inventory?")) return;
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (!error) fetchProducts();
   };
 
-  // ✅ Group and filter products
-  const groupedProducts = products.reduce((acc, product) => {
-    const cat = product.category || "Uncategorized";
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(product);
-    return acc;
-  }, {});
+  // CATEGORY LOGIC
+  const categories = ["All", ...new Set(products.map((p) => p.category || "Uncategorized"))];
 
-  const categories = ["All", ...Object.keys(groupedProducts)];
+  const filteredProducts = products.filter((p) => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = activeCategory === "All" || (p.category || "Uncategorized") === activeCategory;
+    return matchesSearch && matchesCategory;
+  });
 
-  const getFilteredProducts = () => {
-    if (search.trim() === "" && activeCategory === "All") {
-      return [];
-    }
-
-    const baseList =
-      activeCategory === "All"
-        ? products
-        : groupedProducts[activeCategory] || [];
-
-    if (search.trim() === "") {
-      return baseList;
-    }
-
-    return baseList.filter((p) =>
-      p.name.toLowerCase().includes(search.toLowerCase())
-    );
-  };
-
-  const filteredProducts = getFilteredProducts();
-  const hasFiltered = search.trim() !== "" || activeCategory !== "All";
-
-  // ✅ Render
   return (
-    <div className="flex flex-col bg-background text-foreground transition-colors duration-300 p-4 rounded-lg shadow-md max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">Inventory Manager</h2>
+    <div className="max-w-5xl mx-auto p-6 bg-background min-h-screen">
+      {/* HEADER */}
+      <header className="mb-8 border-b-4 border-primary pb-4 flex justify-between items-end">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">INVENTORY</h1>
+          <p className="text-muted-foreground uppercase text-xs font-bold tracking-widest">Stock & Catalog Management</p>
+        </div>
+        <div className="text-right hidden md:block">
+          <span className="text-3xl font-black text-primary">{products.length}</span>
+          <p className="text-[10px] font-bold uppercase">Total SKUs</p>
+        </div>
+      </header>
 
       {message && (
-        <p
-          className={`mb-4 text-sm ${
-            message.startsWith("❌") ? "text-red-500" : "text-green-500"
-          }`}
-        >
+        <div className={`mb-6 p-4 font-bold text-center border-2 ${message.includes('❌') ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
           {message}
-        </p>
+        </div>
       )}
 
-      {/* Product Form */}
-      <form
-        onSubmit={handleSubmit}
-        className="mb-6 p-4 bg-card border border-border rounded-lg shadow-sm"
-      >
-        <h3 className="text-lg font-semibold mb-4">
-          {form.id ? "Edit Product" : "Add New Product"}
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input
-            type="text"
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            placeholder="Product Name"
-            className="p-2 rounded border border-border bg-background text-foreground"
-            required
-          />
-          <input
-            type="text"
-            name="category"
-            value={form.category}
-            onChange={handleChange}
-            placeholder="Category"
-            className="p-2 rounded border border-border bg-background text-foreground"
-          />
-          <input
-            type="number"
-            name="quantity"
-            value={form.quantity}
-            onChange={handleChange}
-            placeholder="Quantity"
-            className="p-2 rounded border border-border bg-background text-foreground"
-            required
-            min="0"
-          />
-          <input
-            type="number"
-            step="0.01"
-            name="price"
-            value={form.price}
-            onChange={handleChange}
-            placeholder="Price"
-            className="p-2 rounded border border-border bg-background text-foreground"
-            required
-            min="0"
-          />
-        </div>
-        <div className="flex gap-2 mt-4">
-          <button
-            type="submit"
-            className="flex-1 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
-          >
-            {form.id ? "Update Product" : "Add Product"}
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              setForm({
-                id: null,
-                name: "",
-                category: "",
-                quantity: 0,
-                price: 0,
-              })
-            }
-            className="px-4 py-2 rounded-md bg-muted text-muted-foreground hover:bg-muted/90 transition-colors font-medium"
-          >
-            Clear
-          </button>
-        </div>
-      </form>
+      {userId && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* LEFT: FORM COLUMN */}
+          <div className="lg:col-span-1">
+            <form onSubmit={handleSubmit} className="sticky top-6 bg-card border-2 border-border p-6 rounded-xl shadow-sm">
+              <h3 className="text-lg font-black uppercase mb-4 pb-2 border-b border-border">
+                {form.id ? "Update Item" : "New Product"}
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase mb-1">Product Name</label>
+                  <input
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    className="w-full p-3 border-2 border-muted bg-background rounded focus:border-primary outline-none font-medium"
+                    required
+                  />
+                </div>
 
-      {/* Search */}
-      <input
-        type="text"
-        placeholder="Search products..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full p-3 mb-4 rounded-lg border border-border focus:ring-2 focus:ring-accent focus:outline-none bg-card text-foreground placeholder-muted-foreground"
-      />
+                <div>
+                  <label className="block text-[10px] font-black uppercase mb-1">Category</label>
+                  <input
+                    name="category"
+                    value={form.category}
+                    onChange={handleChange}
+                    className="w-full p-3 border-2 border-muted bg-background rounded outline-none"
+                    placeholder="e.g. Beverages"
+                  />
+                </div>
 
-      {/* Category Filter */}
-      <div className="flex gap-2 overflow-x-auto mb-6 pb-2 scrollbar-thin scrollbar-thumb-accent scrollbar-track-transparent">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`px-4 py-2 rounded-full text-sm whitespace-nowrap flex-shrink-0 transition-colors ${
-              activeCategory === cat
-                ? "bg-accent text-accent-foreground font-semibold"
-                : "bg-card text-foreground hover:bg-muted"
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase mb-1">Stock Qty</label>
+                    <input
+                      type="number"
+                      name="quantity"
+                      value={form.quantity}
+                      onChange={handleChange}
+                      className="w-full p-3 border-2 border-muted bg-background rounded outline-none font-bold"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase mb-1">Price (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="price"
+                      value={form.price}
+                      onChange={handleChange}
+                      className="w-full p-3 border-2 border-muted bg-background rounded outline-none font-bold text-primary"
+                      required
+                    />
+                  </div>
+                </div>
 
-      {/* Products Table */}
-      {loading ? (
-        <p className="text-center mt-6">Loading products...</p>
-      ) : (
-        <div className="overflow-x-auto">
-          {!hasFiltered ? (
-            <p className="text-center mt-6 text-muted-foreground">
-              Please search or select a category to see products.
-            </p>
-          ) : filteredProducts.length > 0 ? (
-            <table className="w-full border-collapse border border-border rounded-lg bg-card text-foreground">
-              <thead>
-                <tr className="border-b border-border bg-muted">
-                  <th className="p-3 text-left font-semibold">ID</th>
-                  <th className="p-3 text-left font-semibold">Name</th>
-                  <th className="p-3 text-left font-semibold">Category</th>
-                  <th className="p-3 text-left font-semibold">Quantity</th>
-                  <th className="p-3 text-left font-semibold">Price</th>
-                  <th className="p-3 text-left font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.map((product) => (
-                  <tr
-                    key={product.id}
-                    className="border-b border-border hover:bg-muted"
+                <div className="pt-4 flex flex-col gap-2">
+                  <button type="submit" className="w-full py-4 bg-primary text-primary-foreground font-black uppercase tracking-widest rounded hover:bg-primary/90 transition-all">
+                    {form.id ? "Save Changes" : "Add to Stock"}
+                  </button>
+                  {form.id && (
+                    <button 
+                      type="button" 
+                      onClick={() => setForm({ id: null, name: "", category: "", quantity: 0, price: 0 })}
+                      className="w-full py-2 text-xs font-bold text-muted-foreground uppercase border border-transparent hover:border-muted rounded"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+          </div>
+
+          {/* RIGHT: LIST COLUMN */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Search & Filters */}
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="SEARCH INVENTORY..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full p-4 border-2 border-border rounded-xl bg-card font-bold placeholder:text-muted-foreground outline-none focus:border-primary"
+              />
+              
+              <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-5 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all border-2 ${
+                      activeCategory === cat
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "bg-background border-border text-muted-foreground hover:border-primary"
+                    }`}
                   >
-                    <td className="p-3">{product.id}</td>
-                    <td className="p-3 font-medium">{product.name}</td>
-                    <td className="p-3">
-                      {product.category || "Uncategorized"}
-                    </td>
-                    <td className="p-3">{product.quantity}</td>
-                    <td className="p-3">₹{product.price.toFixed(2)}</td>
-                    <td className="p-3 flex gap-2">
-                      <button
-                        onClick={() => handleEdit(product)}
-                        className="px-3 py-1 bg-accent text-accent-foreground rounded-md hover:bg-accent/90 transition-colors text-sm"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(product.id)}
-                        className="px-3 py-1 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors text-sm"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
+                    {cat}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="text-center mt-6 text-muted-foreground">
-              No products match your search or filter.
-            </p>
-          )}
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-card border-2 border-border rounded-xl overflow-hidden shadow-sm">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="bg-muted border-b-2 border-border">
+                    <th className="p-4 font-black uppercase text-[10px]">Product</th>
+                    <th className="p-4 font-black uppercase text-[10px]">Category</th>
+                    <th className="p-4 font-black uppercase text-[10px] text-center">Stock</th>
+                    <th className="p-4 font-black uppercase text-[10px] text-right">Price</th>
+                    <th className="p-4 font-black uppercase text-[10px] text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {loading ? (
+                    <tr><td colSpan="5" className="p-10 text-center font-bold animate-pulse">SYNCHRONIZING DATA...</td></tr>
+                  ) : filteredProducts.length === 0 ? (
+                    <tr><td colSpan="5" className="p-10 text-center text-muted-foreground">No items found matching your criteria.</td></tr>
+                  ) : (
+                    filteredProducts.map((p) => (
+                      <tr key={p.id} className="hover:bg-muted/30 transition-colors group">
+                        <td className="p-4">
+                          <div className="font-black uppercase">{p.name}</div>
+                          <div className="text-[10px] text-muted-foreground">ID: {p.id}</div>
+                        </td>
+                        <td className="p-4 text-xs font-bold uppercase text-muted-foreground">
+                          {p.category || "Uncategorized"}
+                        </td>
+                        <td className="p-4 text-center">
+                          <span className={`px-3 py-1 rounded font-black text-xs ${p.quantity <= 5 ? 'bg-red-100 text-red-700' : 'bg-muted text-foreground'}`}>
+                            {p.quantity}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right font-black text-primary">
+                          ₹{p.price.toFixed(2)}
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEdit(p)} className="p-1 text-primary hover:underline font-bold text-[10px] uppercase">Edit</button>
+                            <button onClick={() => handleDelete(p.id)} className="p-1 text-destructive hover:underline font-bold text-[10px] uppercase">Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>

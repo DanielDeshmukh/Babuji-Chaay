@@ -19,7 +19,8 @@ const EXPORT_TYPES = {
 };
 
 // --- Backend Configuration ---
-const BACKEND_URL = 'http://localhost:3000/api/exports/sales'; 
+const API_BASE = import.meta.env.VITE_API_BASE;
+const BACKEND_URL = `${API_BASE}/api/exports/sales`; 
 
 const ExportData = () => {
     const [loading, setLoading] = useState(false);

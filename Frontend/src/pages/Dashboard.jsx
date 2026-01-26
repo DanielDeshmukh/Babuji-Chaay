@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, forwardRef } from "react";
-import { TrendingUp, Users, DollarSign, ShoppingCart, Receipt } from "lucide-react";
+import { TrendingUp, Users, DollarSign, ShoppingCart, Receipt, FileText, Calendar } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import {
@@ -24,10 +24,34 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { data } from "react-router-dom";
 
 const VISIBLE_POINTS = 7;
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = import.meta.env.VITE_API_BASE;
+
+/**
+ * SECURE ACTION HELPER
+ * Opens secured backend URLs by fetching with Auth headers first, then creating a blob URL.
+ */
+const openSecureLink = async (endpoint) => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${session?.access_token}`,
+      },
+    });
+
+    if (!response.ok) throw new Error("Unauthorized access to API");
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  } catch (err) {
+    console.error("API Error:", err);
+    alert("Session expired or unauthorized. Please log in again.");
+  }
+};
 
 const NoKeyboardInput = forwardRef(
   ({ value, onClick, placeholder, className }, ref) => (
@@ -40,24 +64,11 @@ const NoKeyboardInput = forwardRef(
       }}
       onFocus={(e) => e.target.blur()}
       readOnly
-      data-no-keyboard
       placeholder={placeholder}
       className={className}
     />
   )
 );
-const {
-  data: { session },
-  error,
-} = await supabase.auth.getSession();
-
-if (error) {
-  console.error("Session error:", error);
-}
-
-console.log("SESSION:", session);
-console.log("ACCESS TOKEN:", session?.access_token);
-
 
 const formatCurrency = (v) =>
   typeof v === "number" ? `₹${v.toLocaleString("en-IN")}` : v;
@@ -74,43 +85,32 @@ function Dashboard() {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [specificDate, setSpecificDate] = useState(null);
-
-  // FIX: was used but never declared
-  const [selectedDailyBillNo, setSelectedDailyBillNo] = useState(null);
+  const [selectedDailyBillNo, setSelectedDailyBillNo] = useState("");
 
   const datePickerClassName =
-    "px-3 py-2 rounded-md bg-card text-card-foreground placeholder-muted-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-300";
+    "px-3 py-2 rounded-md bg-card text-card-foreground placeholder-muted-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-300 w-full text-sm";
 
   const formatLocalDate = (date) => date.toLocaleDateString("en-CA");
 
-  // -------------------- CHART DATA --------------------
+  // 1) Session Sync to Backend
   useEffect(() => {
-    const syncSessionToBackend = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
+    const syncSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.access_token) {
-        await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/auth/session`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              access_token: session.access_token,
-            }),
-          }
-        );
+        await fetch(`${BACKEND_URL}/auth/session`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}` 
+          },
+          body: JSON.stringify({ access_token: session.access_token }),
+        }).catch(err => console.error("Sync failed", err));
       }
     };
-
-    syncSessionToBackend();
+    syncSession();
   }, []);
 
-
+  // 2) Fetch Charts (Supabase Client handles JWT automatically)
   useEffect(() => {
     const fetchSummary = async () => {
       try {
@@ -120,184 +120,92 @@ function Dashboard() {
           .order("sales_date", { ascending: true });
 
         if (error) throw error;
+        if (!rows?.length) return setHasData(false);
 
-        if (!rows?.length) {
-          setHasData(false);
-          return;
-        }
-
-        setData(
-          rows.map((r) => ({
-            date: new Date(r.sales_date).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-            }),
-            sales: r.total_sales,
-            loss: r.total_loss,
-            dump: r.total_dump,
-          }))
-        );
-
+        setData(rows.map((r) => ({
+          date: new Date(r.sales_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+          sales: r.total_sales,
+          loss: r.total_loss,
+          dump: r.total_dump,
+        })));
         setHasData(true);
       } catch (err) {
-        console.error("Error fetching summary:", err);
+        console.error("Summary error:", err);
         setHasData(false);
       }
     };
-
     fetchSummary();
   }, []);
 
-  // -------------------- KPIs --------------------
+  // 3) KPIs Fetch
   useEffect(() => {
     const fetchKPIs = async () => {
       try {
-        const today = new Date();
-        const start = startDate ? formatLocalDate(startDate) : formatLocalDate(today);
-        const end = endDate ? formatLocalDate(endDate) : formatLocalDate(today);
+        const todayStr = formatLocalDate(new Date());
+        const start = startDate ? formatLocalDate(startDate) : todayStr;
+        const end = endDate ? formatLocalDate(endDate) : todayStr;
 
-        const { data: summaryData, error } = await supabase
+        const { data: summaryData } = await supabase
           .from("daily_sales_summary")
           .select("total_sales, total_loss, total_dump")
           .gte("sales_date", start)
           .lte("sales_date", end);
 
-        if (error) throw error;
+        const totalIncome = summaryData?.reduce((sum, r) => sum + Number(r.total_sales || 0), 0) || 0;
+        const totalExpenses = summaryData?.reduce((sum, r) => sum + Number(r.total_loss || 0) + Number(r.total_dump || 0), 0) || 0;
 
-        const totalIncome = summaryData.reduce(
-          (sum, r) => sum + Number(r.total_sales || 0),
-          0
-        );
-
-        const totalExpenses = summaryData.reduce(
-          (sum, r) => sum + Number(r.total_loss || 0) + Number(r.total_dump || 0),
-          0
-        );
-
-        const { data: txData } = await supabase
+        const { count: totalOrders } = await supabase
           .from("transactions")
-          .select("id")
-          .gte("created_at", `${start}T00:00:00+05:30`)
-          .lte("created_at", `${end}T23:59:59+05:30`);
-
-        const totalOrders = txData?.length || 0;
-
-        const yesterday = new Date(today);
-        yesterday.setDate(today.getDate() - 1);
-
-        const { data: prevData } = await supabase
-          .from("daily_sales_summary")
-          .select("total_sales")
-          .eq("sales_date", formatLocalDate(yesterday))
-          .single();
-
-        const growth =
-          prevData?.total_sales
-            ? (((totalIncome - prevData.total_sales) / prevData.total_sales) * 100).toFixed(1)
-            : "0.0";
+          .select("*", { count: 'exact', head: true })
+          .gte("created_at", `${start}T00:00:00`)
+          .lte("created_at", `${end}T23:59:59`);
 
         setKpis([
-          {
-            title: "Income",
-            value: totalIncome,
-            delta: `${growth}%`,
-            icon: DollarSign,
-            color: "var(--accent)",
-          },
-          {
-            title: "Orders",
-            value: totalOrders,
-            delta: "+",
-            icon: ShoppingCart,
-            color: "var(--secondary)",
-          },
-          {
-            title: "Expenses",
-            value: totalExpenses,
-            delta: "-",
-            icon: Users,
-            color: "var(--secondary-foreground)",
-          },
-          {
-            title: "Growth",
-            value: `${growth}%`,
-            delta: growth >= 0 ? "↑" : "↓",
-            icon: TrendingUp,
-            color: "var(--primary)",
-          },
+          { title: "Income", value: totalIncome, delta: "Current Period", icon: DollarSign, color: "var(--accent)" },
+          { title: "Orders", value: totalOrders || 0, delta: "Transactions", icon: ShoppingCart, color: "var(--secondary)" },
+          { title: "Expenses", value: totalExpenses, delta: "Loss/Dump", icon: Users, color: "var(--secondary-foreground)" },
+          { title: "Growth", value: "Live", delta: "Active", icon: TrendingUp, color: "var(--primary)" },
         ]);
-      } catch (err) {
-        console.error("Error fetching KPIs:", err);
-      }
+      } catch (err) { console.error(err); }
     };
-
     fetchKPIs();
   }, [startDate, endDate]);
 
-  // -------------------- REPORTS --------------------
-  const downloadReport = async (type) => {
-    try {
-      setLoadingReport(true);
-      let query = "";
-
-      if (type === "range" && startDate && endDate) {
-        query = `?start=${formatLocalDate(startDate)}&end=${formatLocalDate(endDate)}`;
-      } else if (type === "specific" && specificDate) {
-        const d = formatLocalDate(specificDate);
-        query = `?start=${d}&end=${d}`;
-      } else {
-        const today = formatLocalDate(new Date());
-        query = `?start=${today}&end=${today}`;
-      }
-
-      window.open(`${BACKEND_URL}/api/reports/generate${query}`, "_blank");
-      setShowReportOptions(false);
-    } catch (err) {
-      console.error("Report open failed:", err);
-      alert("Failed to open report.");
-    } finally {
-      setLoadingReport(false);
+  // 4) Report Generation (Authorized)
+  const downloadReport = (type) => {
+    let query = "";
+    if (type === "range" && startDate && endDate) {
+      query = `?start=${formatLocalDate(startDate)}&end=${formatLocalDate(endDate)}`;
+    } else if (type === "specific" && specificDate) {
+      const d = formatLocalDate(specificDate);
+      query = `?start=${d}&end=${d}`;
+    } else {
+      const today = formatLocalDate(new Date());
+      query = `?start=${today}&end=${today}`;
     }
+    openSecureLink(`/api/reports/generate${query}`);
+    setShowReportOptions(false);
   };
 
-  // -------------------- TRANSACTIONS --------------------
-  const viewTransactions = async (type) => {
-    try {
-      setLoadingReport(true);
-      let url = `${BACKEND_URL}/api/transactions`;
-
-      if (type === "daily") {
-        const today = formatLocalDate(new Date());
-        url += `?start=${today}&end=${today}`;
-      } else if (type === "specific" && specificDate) {
-        const d = formatLocalDate(specificDate);
-        url += `?start=${d}&end=${d}`;
-      } else if (type === "range" && startDate && endDate) {
-        url += `?start=${formatLocalDate(startDate)}&end=${formatLocalDate(endDate)}`;
-      } else if (type === "invoice" && selectedDailyBillNo) {
-        url = `${BACKEND_URL}/api/transactions/daily/${selectedDailyBillNo}/invoice`;
-      }
-
-      console.log("Opening transactions URL:", url);
-      window.open(url, "_blank");
-      setShowTransactionOptions(false);
-    } catch (err) {
-      console.error("Transaction view failed:", err);
-      alert("Failed to view transactions.");
-    } finally {
-      setLoadingReport(false);
+  // 5) Transactions View (Authorized)
+  const viewTransactions = (type) => {
+    let url = `/api/transactions`;
+    if (type === "daily") {
+      const today = formatLocalDate(new Date());
+      url += `?start=${today}&end=${today}`;
+    } else if (type === "specific" && specificDate) {
+      const d = formatLocalDate(specificDate);
+      url += `?start=${d}&end=${d}`;
+    } else if (type === "range" && startDate && endDate) {
+      url += `?start=${formatLocalDate(startDate)}&end=${formatLocalDate(endDate)}`;
+    } else if (type === "invoice" && selectedDailyBillNo) {
+      url = `/api/transactions/daily/${selectedDailyBillNo}/invoice`;
     }
+    openSecureLink(url);
+    setShowTransactionOptions(false);
   };
 
-
-  const visibleData = data.length
-    ? data.slice(-VISIBLE_POINTS)
-    : Array.from({ length: VISIBLE_POINTS }).map((_, i) => ({
-      date: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i % 7],
-      sales: Math.round(200 + Math.sin(i / 2) * 40 + i * 10),
-      loss: Math.round(80 + Math.cos(i / 3) * 20),
-      dump: Math.round(30 + (i % 3) * 10),
-    }));
+  const visibleData = data.length ? data.slice(-VISIBLE_POINTS) : [];
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
@@ -305,257 +213,135 @@ function Dashboard() {
       <main className="flex-1 p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-semibold">Dashboard</h1>
-            <div className="px-3 py-1 rounded-md text-sm bg-muted text-muted-foreground">
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <div className="px-3 py-1 rounded-md text-sm bg-muted text-muted-foreground font-medium">
               Overview
             </div>
           </div>
         </div>
 
+        {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
           {kpis.map((kpi) => {
             const Icon = kpi.icon;
             return (
-              <div
-                key={kpi.title}
-                className="rounded-xl p-4 bg-card border border-border shadow-xl transition-colors"
-              >
-                <div className="flex items-start justify-between gap-4">
+              <Card key={kpi.title} className="rounded-xl shadow-sm border border-border">
+                <CardContent className="p-5 flex items-start justify-between">
                   <div>
-                    <div className="text-sm text-muted-foreground">{kpi.title}</div>
-                    <div className="mt-1 text-2xl font-bold text-card-foreground">
-                      {formatCurrency(kpi.value)}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {kpi.delta} vs last period
-                    </div>
+                    <p className="text-sm font-medium text-muted-foreground">{kpi.title}</p>
+                    <h3 className="text-2xl font-bold mt-1">{formatCurrency(kpi.value)}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{kpi.delta}</p>
                   </div>
-                  <Icon className="h-6 w-6" style={{ color: kpi.color }} />
-                </div>
-              </div>
+                  <div className="p-2 rounded-lg bg-muted">
+                    <Icon className="h-5 w-5" style={{ color: kpi.color }} />
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="rounded-2xl bg-card border border-border shadow-xl">
-              <CardHeader>
-                <CardTitle>Earnings</CardTitle>
-                <CardDescription>This week vs last week</CardDescription>
-              </CardHeader>
+          {/* Main Chart */}
+          <Card className="lg:col-span-2 rounded-xl shadow-sm border border-border">
+            <CardHeader>
+              <CardTitle>Sales Trend</CardTitle>
+              <CardDescription>Recent performance overview</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div style={{ height: 320 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={visibleData}>
+                    <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
+                    <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "8px" }} />
+                    <defs>
+                      <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="sales" stroke="var(--primary)" strokeWidth={2} fill="url(#salesGradient)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
 
-              <CardContent>
-                <div style={{ height: 320 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={visibleData}>
-                      <CartesianGrid vertical={false} stroke="var(--border)" />
-                      <XAxis
-                        dataKey="date"
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fill: "var(--muted-foreground)" }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "var(--card)",
-                          border: `1px solid var(--border)`,
-                        }}
-                        itemStyle={{ color: "var(--foreground)" }}
-                      />
-                      <defs>
-                        <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.3} />
-                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <Area
-                        type="monotone"
-                        dataKey="sales"
-                        stroke="var(--primary)"
-                        strokeWidth={1.5}
-                        fill="url(#salesGradient)"
-                        activeDot={{
-                          r: 5,
-                          stroke: "var(--foreground)",
-                          strokeWidth: 2,
-                        }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-
-              <CardFooter className="text-sm text-muted-foreground">
-                Trending up by {kpis[3]?.value || "0%"} this period
-              </CardFooter>
-            </Card>
-          </div>
-
+          {/* Action Cards (Side Panel) */}
           <div className="space-y-6">
-            <Card className="rounded-2xl bg-card border border-border shadow-xl p-4">
-              <CardHeader className="flex items-center justify-between">
-                <CardTitle>Reports</CardTitle>
-                <CardDescription>Export PDFs</CardDescription>
+            {/* Reports Card */}
+            <Card className="rounded-xl shadow-sm border border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" /> Reports
+                </CardTitle>
               </CardHeader>
-
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 {!showReportOptions ? (
-                  <button
-                    className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
-                    onClick={() => setShowReportOptions(true)}
-                    disabled={loadingReport}
-                  >
-                    {loadingReport ? "Generating..." : "View Report"}
+                  <button onClick={() => setShowReportOptions(true)} className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition">
+                    Export Reports
                   </button>
                 ) : (
-                  <>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        className="px-3 py-2 rounded-md bg-card border border-border"
-                        onClick={() => downloadReport("daily")}
-                      >
-                        Daily
-                      </button>
-                      <DatePicker
-                        selected={specificDate}
-                        onChange={setSpecificDate}
-                        placeholderText="Specific Day"
-                        customInput={<NoKeyboardInput className={datePickerClassName} />}
-                      />
-                      <button
-                        className="px-3 py-2 rounded-md bg-primary text-primary-foreground"
-                        onClick={() => downloadReport("specific")}
-                        disabled={!specificDate}
-                      >
-                        Specific
-                      </button>
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                    <button onClick={() => downloadReport("daily")} className="w-full py-2 bg-muted hover:bg-muted/80 rounded-lg text-sm font-medium transition">Daily Report</button>
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Specific Day or Range</p>
+                      <DatePicker selected={specificDate} onChange={setSpecificDate} placeholderText="Pick a date" customInput={<NoKeyboardInput className={datePickerClassName} />} />
+                      <div className="grid grid-cols-2 gap-2">
+                        <DatePicker selected={startDate} onChange={setStartDate} selectsStart startDate={startDate} endDate={endDate} placeholderText="Start" customInput={<NoKeyboardInput className={datePickerClassName} />} />
+                        <DatePicker selected={endDate} onChange={setEndDate} selectsEnd startDate={startDate} endDate={endDate} minDate={startDate} placeholderText="End" customInput={<NoKeyboardInput className={datePickerClassName} />} />
+                      </div>
+                      <div className="flex gap-2">
+                         <button onClick={() => downloadReport("specific")} disabled={!specificDate} className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-bold disabled:opacity-50">Day</button>
+                         <button onClick={() => downloadReport("range")} disabled={!startDate || !endDate} className="flex-1 py-2 bg-secondary text-secondary-foreground rounded-lg text-xs font-bold disabled:opacity-50">Range</button>
+                      </div>
                     </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <DatePicker
-                        selected={startDate}
-                        onChange={setStartDate}
-                        selectsStart
-                        startDate={startDate}
-                        endDate={endDate}
-                        placeholderText="Start"
-                        customInput={<NoKeyboardInput className={datePickerClassName} />}
-                      />
-                      <DatePicker
-                        selected={endDate}
-                        onChange={setEndDate}
-                        selectsEnd
-                        startDate={startDate}
-                        endDate={endDate}
-                        minDate={startDate}
-                        placeholderText="End"
-                        customInput={<NoKeyboardInput className={datePickerClassName} />}
-                      />
-                      <button
-                        className="px-3 py-2 rounded-md bg-secondary text-secondary-foreground"
-                        onClick={() => downloadReport("range")}
-                        disabled={!startDate || !endDate}
-                      >
-                        Range
-                      </button>
-                    </div>
-
-                    <button
-                      className="px-3 py-2 rounded-md bg-muted text-muted-foreground"
-                      onClick={() => setShowReportOptions(false)}
-                    >
-                      Cancel
-                    </button>
-                  </>
+                    <button onClick={() => setShowReportOptions(false)} className="w-full py-2 text-xs text-muted-foreground font-medium underline">Back</button>
+                  </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl bg-card border border-border shadow-xl p-4">
-              <CardHeader className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-primary" />
-                  Transactions
+            {/* Transactions Card */}
+            <Card className="rounded-xl shadow-sm border border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-primary" /> Transactions
                 </CardTitle>
-                <CardDescription>View or Export</CardDescription>
               </CardHeader>
-
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 {!showTransactionOptions ? (
-                  <button
-                    className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
-                    onClick={() => setShowTransactionOptions(true)}
-                    disabled={loadingReport}
-                  >
-                    {loadingReport ? "Loading..." : "View Transactions"}
+                  <button onClick={() => setShowTransactionOptions(true)} className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition">
+                    Browse Transactions
                   </button>
                 ) : (
-                  <>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        className="px-3 py-2 rounded-md bg-card border border-border"
-                        onClick={() => viewTransactions("daily")}
-                      >
-                        Daily
-                      </button>
-                      <DatePicker
-                        selected={specificDate}
-                        onChange={setSpecificDate}
-                        placeholderText="Specific Day"
-                        customInput={<NoKeyboardInput className={datePickerClassName} />}
-                      />
-                      <button
-                        className="px-3 py-2 rounded-md bg-primary text-primary-foreground"
-                        onClick={() => viewTransactions("specific")}
-                        disabled={!specificDate}
-                      >
-                        Specific
-                      </button>
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                    <button onClick={() => viewTransactions("daily")} className="w-full py-2 bg-muted hover:bg-muted/80 rounded-lg text-sm font-medium transition">Current Day</button>
+                    <div className="space-y-2 pt-2 border-t border-border">
+                       <input 
+                         type="number" 
+                         placeholder="Bill No. (Invoice)" 
+                         value={selectedDailyBillNo} 
+                         onChange={(e) => setSelectedDailyBillNo(e.target.value)} 
+                         className={datePickerClassName} 
+                       />
+                       <button 
+                         onClick={() => viewTransactions("invoice")} 
+                         disabled={!selectedDailyBillNo} 
+                         className="w-full py-2 bg-accent text-accent-foreground rounded-lg text-xs font-bold disabled:opacity-50 transition"
+                       >
+                         Download Invoice
+                       </button>
                     </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <DatePicker
-                        selected={startDate}
-                        onChange={setStartDate}
-                        selectsStart
-                        startDate={startDate}
-                        endDate={endDate}
-                        placeholderText="Start"
-                        customInput={<NoKeyboardInput className={datePickerClassName} />}
-                      />
-                      <DatePicker
-                        selected={endDate}
-                        onChange={setEndDate}
-                        selectsEnd
-                        startDate={startDate}
-                        endDate={endDate}
-                        minDate={startDate}
-                        placeholderText="End"
-                        customInput={<NoKeyboardInput className={datePickerClassName} />}
-                      />
-                      <button
-                        className="px-3 py-2 rounded-md bg-secondary text-secondary-foreground"
-                        onClick={() => viewTransactions("range")}
-                        disabled={!startDate || !endDate}
-                      >
-                        Range
-                      </button>
-                    </div>
-
-                    <button
-                      className="px-3 py-2 rounded-md bg-muted text-muted-foreground"
-                      onClick={() => setShowTransactionOptions(false)}
-                    >
-                      Cancel
-                    </button>
-                  </>
+                    <button onClick={() => viewTransactions("range")} disabled={!startDate || !endDate} className="w-full py-2 bg-secondary text-secondary-foreground rounded-lg text-xs font-bold disabled:opacity-50 transition">View Range Transactions</button>
+                    <button onClick={() => setShowTransactionOptions(false)} className="w-full py-2 text-xs text-muted-foreground font-medium underline">Back</button>
+                  </div>
                 )}
               </CardContent>
             </Card>
           </div>
         </div>
-
       </main>
       <Footer />
     </div>
@@ -563,7 +349,3 @@ function Dashboard() {
 }
 
 export default Dashboard;
-
-
-
-
