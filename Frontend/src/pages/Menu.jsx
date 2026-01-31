@@ -348,23 +348,10 @@ const handlePayment = async () => {
 
     if (itemsError) {
       console.error("❌ ITEMS INSERT FAILED", itemsError);
-      // We don't throw here to avoid blocking the UI since the main sale succeeded,
-      // but in production, you might want to log this to an error tracking service.
+
     }
 
-    // 5. EXTERNAL SYNC (DISABLED)
-    // We are commenting this out because the DB Trigger handles 'daily_sales_summary'.
-    // This prevents the 500 Internal Server Error you were seeing.
-    /*
-    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-daily-summary`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-      },
-      body: JSON.stringify({ user_id: user.id, timestamp: new Date().toISOString() }),
-    }).catch(e => console.warn("⚠️ Sync Edge Function ignored:", e));
-    */
+    
 
     // 6. TRIGGER PRINT JOB
     setPrintJob({
