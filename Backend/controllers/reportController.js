@@ -8,7 +8,8 @@ import fs from "fs";
 
 export const generateSalesReport = async (req, res) => {
   try {
-    const { start, end, format, theme } = req.query;
+    // Extract token from query to pass it forward to the PDF download link
+    const { start, end, format, theme, token } = req.query;
 
     if (!start || !end) {
       res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
@@ -111,6 +112,7 @@ export const generateSalesReport = async (req, res) => {
           display: inline-block; background-color: var(--primary);
           color: var(--primary-foreground); padding: 0.6rem 1rem;
           border: none; border-radius: 6px; font-weight: 500;
+          text-decoration: none;
           cursor: pointer; margin-left: 1rem; transition: 0.2s;
         }
         .download-btn:hover { background-color: var(--accent); }
@@ -139,7 +141,6 @@ export const generateSalesReport = async (req, res) => {
 
       <script>
         document.addEventListener("DOMContentLoaded", () => {
-          // Only attach if HTML preview
           ${format !== "pdf" ? `
           const themeRadios = document.querySelectorAll("input[name='theme']");
           const downloadBtn = document.querySelector(".download-btn");
@@ -148,7 +149,7 @@ export const generateSalesReport = async (req, res) => {
             radio.addEventListener("change", (e) => {
               document.body.classList.toggle("dark", e.target.value === "dark");
               const currentTheme = e.target.value;
-              const url = new URL(downloadBtn.href);
+              const url = new URL(downloadBtn.href, window.location.origin);
               url.searchParams.set("theme", currentTheme);
               downloadBtn.href = url.toString();
             });
@@ -169,7 +170,7 @@ export const generateSalesReport = async (req, res) => {
         <div class="theme-toggle">
           <label><input type="radio" name="theme" value="light" checked /> Light</label>
           <label><input type="radio" name="theme" value="dark" /> Dark</label>
-          <a href="?start=${start}&end=${end}&format=pdf&theme=light" class="download-btn">⬇ Download PDF</a>
+          <a href="?start=${start}&end=${end}&format=pdf&theme=light${token ? `&token=${token}` : ''}" class="download-btn">⬇ Download PDF</a>
         </div>
       </div>
       ` : ""}
@@ -189,9 +190,9 @@ export const generateSalesReport = async (req, res) => {
           ${data.map(row => `
             <tr>
               <td>${dayjs(row.sales_date).format("DD MMM YYYY")}</td>
-              <td>${row.total_sales.toFixed(2)}</td>
-              <td>${row.total_loss.toFixed(2)}</td>
-              <td>${row.total_dump.toFixed(2)}</td>
+              <td>${Number(row.total_sales).toFixed(2)}</td>
+              <td>${Number(row.total_loss).toFixed(2)}</td>
+              <td>${Number(row.total_dump).toFixed(2)}</td>
               <td>${row.items_sold}</td>
               <td>${row.closing_items}</td>
             </tr>
@@ -246,6 +247,3 @@ export const generateSalesReport = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
-
-

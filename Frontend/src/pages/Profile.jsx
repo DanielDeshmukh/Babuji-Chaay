@@ -1,162 +1,173 @@
 import { useState, useEffect, useCallback } from "react";
-import { useUser } from "../App"; // ✅ Context from App.jsx
+import { useUser } from "../App";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import AuthModal from "../components/AuthModal";
 import ProfileForm from "../components/ProfileForm";
 import supabase from "../lib/supabaseClient";
+import { 
+  Package, 
+  Hash, 
+  Trash2, 
+  AlertCircle, 
+  ChevronDown, 
+  X,
+  History
+} from "lucide-react";
 
 /**
- * LossDumpForm Component
+ * LossDumpForm Component - Refined for professional inventory logging
  */
 const LossDumpForm = ({ user, loading, setLoading, setMessage, products, closeForm }) => {
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [type, setType] = useState("loss"); // 'loss' or 'dump'
+  const [type, setType] = useState("loss");
 
   const handleLog = async (e) => {
     e.preventDefault();
-
     if (!selectedProduct || quantity <= 0) {
-      setMessage("⚠️ Please select a product and enter a valid quantity.");
+      setMessage("⚠️ Selection required.");
       return;
     }
 
     try {
       setLoading(true);
+      // Find the product to get its specific price for this log entry
       const product = products.find((p) => p.id.toString() === selectedProduct);
-      if (!product) throw new Error("Invalid product selected.");
+      if (!product) throw new Error("Invalid product.");
 
-      const payload = {
+      const { error } = await supabase.from("loss_dump_logs").insert([{
         product_id: product.id,
-        quantity,
-        type,
-        user_id: user.id, // ✅ direct user context id
-        product_name: product.name,
-      };
-
-      const { error } = await supabase.from("loss_dump_logs").insert([payload]);
+        quantity: quantity,
+        type: type,
+        user_id: user.id,
+        price_at_time: product.price,
+        created_at: new Date().toISOString() // ✅ Key wire: needed for trigger calculation
+      }]);
+      
       if (error) throw error;
 
-      setMessage(`✅ ${quantity} unit(s) of ${product.name} logged as ${type} successfully!`);
+      setMessage(`✅ Recorded: ${quantity} unit(s) of ${product.name} as ${type.toUpperCase()}`);
       closeForm();
     } catch (err) {
-      setMessage("❌ Failed to log entry: " + err.message);
+      setMessage("❌ Log error: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-6 border border-red-300 rounded-lg bg-red-50 mt-8 space-y-4">
-      <h3 className="text-xl font-semibold text-red-700">Log Product Loss or Dump</h3>
-      <form onSubmit={handleLog} className="space-y-4">
-        <div className="flex flex-col space-y-2">
-          <label htmlFor="product" className="text-sm font-medium">Product</label>
-          <select
-            id="product"
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            className="p-3 border border-border rounded-lg bg-card text-foreground"
-            disabled={loading}
-          >
-            <option value="">Select Product...</option>
-            {products.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name}
-              </option>
-            ))}
-          </select>
+    <div className="mt-8 overflow-hidden border border-destructive/20 rounded-2xl bg-destructive/5 animate-in slide-in-from-top-4 duration-500">
+      <div className="bg-destructive/10 px-6 py-4 flex justify-between items-center border-b border-destructive/10">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="text-destructive" size={20} />
+          <h3 className="font-bold text-destructive tracking-tight">Inventory Adjustment</h3>
+        </div>
+        <button onClick={closeForm} className="text-destructive/60 hover:text-destructive transition-colors">
+          <X size={20} />
+        </button>
+      </div>
+
+      <form onSubmit={handleLog} className="p-6 space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Product Select */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Product</label>
+            <div className="relative">
+              <Package className="absolute left-3 top-3 text-muted-foreground" size={18} />
+              <select
+                value={selectedProduct}
+                onChange={(e) => setSelectedProduct(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl appearance-none focus:ring-2 focus:ring-destructive/20 outline-none transition-all"
+                disabled={loading}
+              >
+                <option value="">Choose item...</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} (₹{p.price})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-3 text-muted-foreground pointer-events-none" size={18} />
+            </div>
+          </div>
+
+          {/* Quantity Input */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Quantity</label>
+            <div className="relative">
+              <Hash className="absolute left-3 top-3 text-muted-foreground" size={18} />
+              <input
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-destructive/20 outline-none transition-all"
+                min="1"
+                disabled={loading}
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col space-y-2">
-          <label htmlFor="quantity" className="text-sm font-medium">Quantity</label>
-          <input
-            id="quantity"
-            type="number"
-            value={quantity}
-            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-            className="p-3 border border-border rounded-lg bg-card text-foreground"
-            min="1"
-            disabled={loading}
-          />
-        </div>
-
-        <div className="flex space-x-4">
-          <label className="flex items-center space-x-2">
-            <input
-              type="radio"
-              name="type"
-              value="loss"
-              checked={type === "loss"}
-              onChange={() => setType("loss")}
-              className="text-red-600 focus:ring-red-500"
-              disabled={loading}
-            />
-            <span>Loss (Damaged/Stolen)</span>
-          </label>
-          <label className="flex items-center space-x-2">
-            <input
-              type="radio"
-              name="type"
-              value="dump"
-              checked={type === "dump"}
-              onChange={() => setType("dump")}
-              className="text-red-600 focus:ring-red-500"
-              disabled={loading}
-            />
-            <span>Dump (Expired/Wasted)</span>
-          </label>
-        </div>
-
-        <div className="flex gap-2">
+        {/* Type Selection Tabs */}
+        <div className="flex p-1 bg-background border border-border rounded-xl gap-1">
           <button
-            type="submit"
-            disabled={!selectedProduct || quantity <= 0 || loading}
-            className="flex-1 px-5 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium text-white transition disabled:opacity-50"
+            type="button"
+            onClick={() => setType("loss")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${
+              type === "loss" ? "bg-destructive text-white shadow-lg" : "hover:bg-muted text-muted-foreground"
+            }`}
           >
-            {loading ? "Logging..." : "Log Entry"}
+            <AlertCircle size={16} /> Loss (Theft/Damage)
           </button>
           <button
             type="button"
-            onClick={closeForm}
-            disabled={loading}
-            className="px-5 py-2 bg-muted hover:bg-muted/80 rounded-lg text-sm font-medium text-muted-foreground transition disabled:opacity-50"
+            onClick={() => setType("dump")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${
+              type === "dump" ? "bg-destructive text-white shadow-lg" : "hover:bg-muted text-muted-foreground"
+            }`}
           >
-            Close
+            <Trash2 size={16} /> Dump (Waste/Expired)
           </button>
         </div>
+
+        <button
+          type="submit"
+          disabled={!selectedProduct || loading}
+          className="w-full py-3 bg-destructive text-white rounded-xl font-bold shadow-lg shadow-destructive/20 hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+        >
+          {loading ? "Processing..." : "Commit Adjustment"}
+        </button>
       </form>
     </div>
   );
 };
 
 /**
- * --- Main Profile Component ---
+ * Main Profile Component
  */
 const Profile = () => {
-  const { user, profile } = useUser(); // ✅ Directly use context
+  const { user, profile } = useUser();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [showAuthModalForLossDump, setShowAuthModalForLossDump] = useState(false);
   const [showLossDumpForm, setShowLossDumpForm] = useState(false);
   const [products, setProducts] = useState([]);
 
-  // ✅ Fetch only this user's products
   const fetchProducts = useCallback(async () => {
     try {
       if (!user) return;
+      // Fetching both name and price to ensure the log is financially accurate
       const { data, error } = await supabase
         .from("products")
-        .select("id, name")
+        .select("id, name, price")
         .eq("user_id", user.id)
         .order("name", { ascending: true });
 
       if (error) throw error;
       setProducts(data);
-      console.log("🟢 Products for user:", user.id, data);
     } catch (err) {
-      setMessage("❌ Error fetching products: " + err.message);
+      setMessage("❌ Product sync error: " + err.message);
     }
   }, [user]);
 
@@ -164,56 +175,63 @@ const Profile = () => {
     if (user) fetchProducts();
   }, [user, fetchProducts]);
 
-  const handleLossDumpClick = () => {
-    setShowAuthModalForLossDump(true);
-  };
-
   const handleAuthSuccess = () => {
     setShowAuthModalForLossDump(false);
     setShowLossDumpForm(true);
-    setMessage("✅ Admin access granted. You can now log inventory changes.");
+    setMessage("✅ Admin session verified.");
+    // Clear message after 3 seconds
+    setTimeout(() => setMessage(""), 3000);
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-[#F9FAFB] dark:bg-background transition-colors duration-300">
       <Header />
-      <main className="flex-grow py-10 px-4 md:px-6">
-        <div className="max-w-4xl mx-auto bg-card shadow-xl rounded-2xl p-6 md:p-10">
-          {user ? (
-            <>
-              <ProfileForm
-                profile={profile}
-                user={user}
-                loading={loading}
-                setLoading={setLoading}
-                setMessage={setMessage}
-                handleLossDumpClick={handleLossDumpClick}
-              />
-              {showLossDumpForm && (
-                <LossDumpForm
+      
+      <main className="flex-grow py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Main Profile Card */}
+          <div className="bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-border rounded-[2rem] p-6 md:p-12">
+            {user ? (
+              <>
+                <ProfileForm
+                  profile={profile}
                   user={user}
                   loading={loading}
                   setLoading={setLoading}
                   setMessage={setMessage}
-                  products={products}
-                  closeForm={() => setShowLossDumpForm(false)}
+                  handleLossDumpClick={() => setShowAuthModalForLossDump(true)}
                 />
-              )}
-            </>
-          ) : (
-            <p className="text-center text-foreground">Loading user data...</p>
-          )}
-          {message && (
-            <p className="mt-4 text-center text-sm text-foreground">{message}</p>
-          )}
+
+                {showLossDumpForm && (
+                  <LossDumpForm
+                    user={user}
+                    loading={loading}
+                    setLoading={setLoading}
+                    setMessage={setMessage}
+                    products={products}
+                    closeForm={() => setShowLossDumpForm(false)}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col items-center py-20 animate-pulse">
+                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
+
+            {message && (
+              <div className="mt-8 flex items-center justify-center gap-2 p-3 bg-muted/50 rounded-xl text-sm font-medium animate-in fade-in duration-500">
+                {message}
+              </div>
+            )}
+          </div>
         </div>
       </main>
+
       <Footer />
 
-      {/* AuthModal for initial login/no user */}
       <AuthModal isOpen={!user} onClose={() => {}} />
 
-      {/* AuthModal for Loss/Dump authentication */}
       {showAuthModalForLossDump && (
         <AuthModal
           isOpen={showAuthModalForLossDump}

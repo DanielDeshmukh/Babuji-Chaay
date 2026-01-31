@@ -1,24 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react"; // Added useEffect
-import { FiDownloadCloud, FiCalendar, FiDollarSign } from "react-icons/fi";
-import supabase from "../lib/supabaseClient"; // Import Supabase client
+import { useState, useEffect } from "react";
+import { FiDownloadCloud, FiCalendar, FiClock } from "react-icons/fi";
+import supabase from "../lib/supabaseClient";
 
 // --- Constants for Export Types ---
 const EXPORT_TYPES = {
     MONTHLY: { 
         key: 'monthly', 
         name: 'Monthly Summary', 
-        description: 'Aggregate sales data by month.' 
+        description: 'Aggregate sales data (Txn ID, Date, Item Count, Payments).' 
     },
     DAILY: { 
         key: 'daily', 
-        name: 'Daily Summary', 
-        description: 'Detailed sales data for each day.' 
+        name: 'Daily Itemized', 
+        description: 'Detailed per-item sales for a specific day.' 
     }
 };
 
-// --- Backend Configuration ---
 const API_BASE = import.meta.env.VITE_API_BASE;
 const BACKEND_URL = `${API_BASE}/api/exports/sales`; 
 
@@ -26,235 +25,185 @@ const ExportData = () => {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState("");
     const [selectedType, setSelectedType] = useState(EXPORT_TYPES.MONTHLY.key);
-    const [monthYear, setMonthYear] = useState(''); // For Monthly Export
-    const [dateRange, setDateRange] = useState({ start: '', end: '' }); // For Daily Export
-    const [userId, setUserId] = useState(null); // NEW: State to hold the authenticated user's ID
+    const [monthYear, setMonthYear] = useState(''); // Format: YYYY-MM
+    const [singleDate, setSingleDate] = useState(''); // Format: YYYY-MM-DD
+    const [userId, setUserId] = useState(null);
 
-    // Helper to check if the current type is monthly
-    const isMonthly = selectedType === EXPORT_TYPES.MONTHLY.key;
-
-    // NEW: Fetch User ID on component mount
+    // Fetch User ID on mount to ensure session exists
     useEffect(() => {
         const fetchUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 setUserId(user.id);
             } else {
-                setMessage("❌ Authentication required to export data.");
+                setMessage("❌ Authentication required.");
             }
         };
         fetchUser();
     }, []);
 
-    /**
-     * Handles validation, builds the GET request URL with query parameters, 
-     * and downloads the Excel file streamed from the backend.
-     */
     const handleExport = async () => {
-        if (loading || !userId) {
-            if (!userId) setMessage("❌ Cannot export. User not authenticated.");
-            return;
-        }
+        if (loading || !userId) return;
 
         setMessage("");
         setLoading(true);
 
-        // --- 1. Validation and Payload Preparation ---
-        // CRITICAL CHANGE: Start payload with the user ID
-        let payload = { 
-            type: selectedType,
-            user_id: userId, 
-        };
+        // --- 1. Payload Preparation (Logic for Single Day vs Month Range) ---
+        let params = { type: selectedType };
         let exportName = "";
-        let validationError = "";
 
         if (selectedType === EXPORT_TYPES.MONTHLY.key) {
-            if (!monthYear) validationError = "⚠️ Please select a month and year.";
-            payload.monthYear = monthYear;
-            exportName = `Monthly_Sales_Summary_${monthYear}.xlsx`;
-        } else if (selectedType === EXPORT_TYPES.DAILY.key) {
-             if (!dateRange.start || !dateRange.end) {
-                 validationError = "⚠️ Please select both start and end dates.";
-             } else if (new Date(dateRange.start) > new Date(dateRange.end)) {
-                 validationError = "⚠️ Start date cannot be after end date.";
-             }
-             // CRITICAL: Flatten dateRange into individual keys for the URL query parameters
-             payload.dateRangeStart = dateRange.start;
-             payload.dateRangeEnd = dateRange.end;
-             exportName = `Daily_Sales_Summary_${dateRange.start}_to_${dateRange.end}.xlsx`;
+            if (!monthYear) {
+                setMessage("⚠️ Please select a month.");
+                setLoading(false);
+                return;
+            }
+            const [year, month] = monthYear.split("-");
+            params.dateRangeStart = `${year}-${month}-01`;
+            params.dateRangeEnd = `${year}-${month}-${new Date(year, month, 0).getDate()}`;
+            exportName = `Monthly_Sales_${monthYear}.xlsx`;
+        } else {
+            if (!singleDate) {
+                setMessage("⚠️ Please select a specific date.");
+                setLoading(false);
+                return;
+            }
+            // Passing singleDate to the backend
+            params.singleDate = singleDate;
+            exportName = `Daily_Itemized_${singleDate}.xlsx`;
         }
-        
-        if (validationError) {
-            setMessage(validationError);
-            setLoading(false);
-            return;
-        }
-        
-        // --- 2. Build Query String (e.g., ?type=daily&user_id=UUID&dateRangeStart=X...) ---
-        // The backend server will use this `user_id` to query the RLS-secured tables.
-        const queryString = new URLSearchParams(payload).toString();
+
+        // --- 2. Build URL (User ID is omitted as it is handled by Middleware token) ---
+        const queryString = new URLSearchParams(params).toString();
         const API_URL = `${BACKEND_URL}?${queryString}`; 
 
-        // --- 3. Actual Backend Call for File Download (Using GET) ---
         try {
+            // --- 3. Get Session Token ---
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Session expired. Please re-login.");
+
+            // --- 4. Fetch File ---
             const response = await fetch(API_URL, {
-                method: 'GET', // CRITICAL: Now using GET method
-                // Note: The JWT token isn't typically sent with the backend request 
-                // unless the backend explicitly requires it for auth (which is good practice).
-                // If your backend uses the JWT, you'd add:
-                // headers: { 'Authorization': `Bearer ${await supabase.auth.getSession().access_token}` }
+                method: 'GET',
+                headers: { 
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
+                }
             });
 
-            // Handle non-2xx HTTP responses (including the custom 404 message)
             if (!response.ok) {
-                // Since the backend sends JSON error messages, we read them
                 const errorData = await response.json(); 
-                throw new Error(errorData.message || `Server error (Status: ${response.status})`);
+                throw new Error(errorData.message || `Server error (${response.status})`);
             }
 
-            // --- SUCCESS: Download the File ---
+            // --- 5. Download Process ---
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
-            
             const a = document.createElement('a');
             a.href = url;
             a.download = exportName; 
-            
             document.body.appendChild(a); 
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
 
-            setMessage(`Export ${exportName} downloaded successfully!`);
+            setMessage(`✅ ${exportName} downloaded successfully!`);
 
         } catch (error) {
             console.error('Export Error:', error);
-            setMessage(`Export failed: ${error.message}`); 
+            setMessage(`❌ Export failed: ${error.message}`); 
         } finally {
             setLoading(false);
         }
     };
 
-
     return (
-        <div className="space-y-4">
-            
-            {/* Header Section */}
+        <div className="space-y-6">
+            {/* Header */}
             <div className="pb-2 border-b border-border">
                 <h3 className="text-xl font-semibold text-foreground flex items-center space-x-2">
                     <FiDownloadCloud size={24} className="text-primary"/>
-                    <span>Sales Data Export</span>
+                    <span>Reports & Exports</span>
                 </h3>
             </div>
             
-            {/* 1. Export Type Selection Section */}
-            <div className="pt-2">
-                <label className="text-lg font-medium block mb-3">
-                    Select Summary Type
-                </label>
-                <div className="flex space-x-4">
-                    {Object.values(EXPORT_TYPES).map((type) => {
-                        const isSelected = selectedType === type.key;
-                        return (
-                            <div 
-                                key={type.key}
-                                onClick={() => !loading && setSelectedType(type.key)}
-                                className={`flex-1 p-3 rounded-md border cursor-pointer transition-all duration-200 
-                                    ${isSelected 
-                                        ? "border-primary bg-primary/10 text-primary shadow-sm" 
-                                        : "border-border hover:border-accent text-muted-foreground bg-card"
-                                    }
-                                    ${loading ? "opacity-60 cursor-not-allowed" : ""}
-                                `}
-                            >
-                                <span className="text-base font-semibold block">
-                                    {type.name}
-                                </span>
-                                <p className="text-xs mt-1">{type.description}</p>
-                            </div>
-                        );
-                    })}
-                </div>
+            {/* Toggle Section */}
+            <div className="grid grid-cols-2 gap-4">
+                {Object.values(EXPORT_TYPES).map((type) => (
+                    <button
+                        key={type.key}
+                        disabled={loading}
+                        onClick={() => setSelectedType(type.key)}
+                        className={`p-4 rounded-xl border text-left transition-all ${
+                            selectedType === type.key 
+                            ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                            : "border-border hover:border-primary/50 bg-card"
+                        }`}
+                    >
+                        <div className="flex items-center justify-between mb-1">
+                            <span className={`font-bold ${selectedType === type.key ? "text-primary" : "text-foreground"}`}>
+                                {type.name}
+                            </span>
+                            {type.key === 'daily' ? <FiClock size={18}/> : <FiCalendar size={18}/>}
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{type.description}</p>
+                    </button>
+                ))}
             </div>
 
-            <hr className="border-border" />
-
-            {/* 2. Specify Period Section */}
-            <div className="pt-2">
-                <label className="text-lg font-medium block mb-3">
-                    Specify Export Period
+            {/* Date Selection Area */}
+            <div className="p-4 rounded-xl bg-accent/5 border border-dashed border-border">
+                <label className="text-sm font-medium text-muted-foreground block mb-2 uppercase tracking-wider">
+                    {selectedType === 'daily' ? "Choose Sales Date" : "Choose Sales Month"}
                 </label>
                 
-                {isMonthly ? (
-                    // Monthly Input (Month/Year Picker)
-                    <div className="flex items-center space-x-4">
-                        <FiCalendar size={20} className="text-muted-foreground" />
-                        <input
-                            type="month"
-                            value={monthYear}
-                            onChange={(e) => setMonthYear(e.target.value)}
-                            className="flex-1 p-3 rounded-md bg-card border border-border text-foreground 
-                                focus:ring-2 focus:ring-accent focus:outline-none transition-colors cursor-pointer"
-                            disabled={loading}
-                        />
-                    </div>
+                {selectedType === EXPORT_TYPES.MONTHLY.key ? (
+                    <input
+                        type="month"
+                        value={monthYear}
+                        onChange={(e) => setMonthYear(e.target.value)}
+                        className="w-full p-3 rounded-lg bg-card border border-border focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer"
+                        disabled={loading}
+                    />
                 ) : (
-                    // Daily Input (Date Range)
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className="text-sm text-muted-foreground block">Start Date</label>
-                            <input
-                                type="date"
-                                value={dateRange.start}
-                                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                                className="w-full p-3 rounded-md bg-card border border-border text-foreground 
-                                    focus:ring-2 focus:ring-accent focus:outline-none transition-colors cursor-pointer"
-                                disabled={loading}
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm text-muted-foreground block">End Date</label>
-                            <input
-                                type="date"
-                                value={dateRange.end}
-                                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                                className="w-full p-3 rounded-md bg-card border border-border text-foreground 
-                                    focus:ring-2 focus:ring-accent focus:outline-none transition-colors cursor-pointer"
-                                disabled={loading}
-                            />
-                        </div>
-                    </div>
+                    <input
+                        type="date"
+                        value={singleDate}
+                        onChange={(e) => setSingleDate(e.target.value)}
+                        className="w-full p-3 rounded-lg bg-card border border-border focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer"
+                        disabled={loading}
+                    />
                 )}
             </div>
 
-            <hr className="border-border" />
-            
-            {/* 3. Run Export Button Section */}
-            <div className="pt-2">
-                <button
-                    onClick={handleExport}
-                    disabled={loading || !userId} // Disable if loading OR not authenticated
-                    className="w-full py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                >
-                    {loading ? (
-                        <>
-                            <span className="animate-spin text-xl">...</span>
-                            <span>Preparing Export...</span>
-                        </>
-                    ) : (
-                        <>
-                            <FiDownloadCloud size={20} />
-                            <span>Run Export</span>
-                        </>
-                    )}
-                </button>
-            </div>
+            {/* Action Button */}
+            <button
+                onClick={handleExport}
+                disabled={loading || !userId}
+                className="w-full py-4 bg-primary text-white font-bold rounded-xl hover:shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
+            >
+                {loading ? (
+                    <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Generating Excel...
+                    </span>
+                ) : (
+                    <>
+                        <FiDownloadCloud size={20} />
+                        <span>Download Excel Report</span>
+                    </>
+                )}
+            </button>
 
-            {/* Message Display */}
+            {/* Alerts */}
             {message && (
-                <p className={`text-center text-sm p-3 rounded-lg ${message.startsWith('❌') || message.startsWith('⚠️') ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300' : 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-300'}`}>
+                <div className={`p-4 rounded-xl text-sm font-medium text-center animate-in fade-in slide-in-from-bottom-2 ${
+                    message.includes('❌') || message.includes('⚠️') 
+                    ? 'bg-destructive/10 text-destructive' 
+                    : 'bg-green-500/10 text-green-600'
+                }`}>
                     {message}
-                </p>
+                </div>
             )}
         </div>
     );

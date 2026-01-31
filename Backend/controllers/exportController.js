@@ -1,12 +1,8 @@
-
 // D:/Vs Code/VS code/Babuji Chaay/Backend/controllers/exportController.js
 
 import exceljs from 'exceljs';
 import { supabase } from '../supabaseClient.js';
 
-/**
- * Helper: Send Excel file to client
- */
 const sendExcelResponse = async (res, filename, data, columns) => {
     const workbook = new exceljs.Workbook();
     const sheet = workbook.addWorksheet('Sales Export');
@@ -19,16 +15,13 @@ const sendExcelResponse = async (res, filename, data, columns) => {
 
     sheet.addRows(data);
 
-    // Style header
     sheet.getRow(1).eachCell((cell) => {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBEBEB' } };
         cell.font = { bold: true, color: { argb: 'FF333333' } };
         cell.alignment = { horizontal: 'center' };
         cell.border = {
-            top: { style: 'thin' },
-            left: { style: 'thin' },
-            bottom: { style: 'thick' },
-            right: { style: 'thin' }
+            top: { style: 'thin' }, left: { style: 'thin' },
+            bottom: { style: 'thick' }, right: { style: 'thin' }
         };
     });
 
@@ -39,130 +32,113 @@ const sendExcelResponse = async (res, filename, data, columns) => {
     res.end();
 };
 
-
-/**
- * Helper: Convert flat transactions into PER-ITEM rows
- */
-const expandTransactionItems = (transactions) => {
-    const rows = [];
-
-    transactions.forEach(tx => {
-        const items = Array.isArray(tx.products) ? tx.products : [];
-
-        if (items.length === 0) {
-            // Still push a row if no items found
-            rows.push({
-                transaction_id: tx.id,
-                bill_no: tx.daily_bill_no,
-                datetime: tx.created_at,
-                product_name: "—",
-                quantity: "—",
-                price: "—",
-                line_total: "—",
-                discount: tx.discount,
-                cash_paid: tx.cash_paid,
-                upi_paid: tx.upi_paid
-            });
-        } else {
-            items.forEach(item => {
-                rows.push({
-                    transaction_id: tx.id,
-                    bill_no: tx.daily_bill_no,
-                    datetime: tx.created_at,
-                    product_name: item.name || item.product_name || "Unknown",
-                    quantity: item.quantity || 1,
-                    price: item.price || item.rate || 0,
-                    line_total: (item.quantity || 1) * (item.price || 0),
-                    discount: tx.discount,
-                    cash_paid: tx.cash_paid,
-                    upi_paid: tx.upi_paid
-                });
-            });
-        }
-    });
-
-    return rows;
-};
-
-
-/**
- * Main Export Controller (Daily or Monthly)
- */
 export const exportSalesData = async (req, res) => {
-    const userId = req.userId;
-    console.log("[EXPORT] user:", userId);
+    const userId = req.userId || req.user?.id;
+    const { type, dateRangeStart, dateRangeEnd, singleDate } = req.query;
 
-    const { type, monthYear, dateRangeStart, dateRangeEnd } = req.query;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const dateRange = {
-        start: dateRangeStart,
-        end: dateRangeEnd
-    };
+    let queryStart, queryEnd, filename;
 
-    console.log("EXPORT CONTROLLER TRIGGERED");
-    console.log(req.query);
-
-    let queryStart, queryEnd;
-    let filename = "";
+    if (type === "daily") {
+        queryStart = `${singleDate}T00:00:00+05:30`;
+        queryEnd = `${singleDate}T23:59:59+05:30`;
+        filename = `Daily_Itemized_${singleDate}.xlsx`;
+    } else {
+        queryStart = `${dateRangeStart}T00:00:00+05:30`;
+        queryEnd = `${dateRangeEnd}T23:59:59+05:30`;
+        filename = `Monthly_Summary_${dateRangeStart.substring(0, 7)}.xlsx`;
+    }
 
     try {
-        // DAILY export uses given date range
-        if (type === "daily") {
-            queryStart = `${dateRange.start}T00:00:00+05:30`;
-            queryEnd = `${dateRange.end}T23:59:59+05:30`;
-
-            filename = `Daily_Transactions_${dateRange.start}_to_${dateRange.end}.xlsx`;
-        }
-
-        // MONTHLY also uses given date range (user selects start & end)
-        else if (type === "monthly") {
-            queryStart = `${dateRange.start}T00:00:00+05:30`;
-            queryEnd = `${dateRange.end}T23:59:59+05:30`;
-
-            filename = `Monthly_Transactions_${dateRange.start}_to_${dateRange.end}.xlsx`;
-        }
-
-        if (!type || !dateRange.start || !dateRange.end) {
-            return res.status(400).json({ message: "Invalid export parameters" });
-        }
-
-
-        // Fetch transactions
-        const { data: txs, error } = await supabase
-            .from('transactions')
-            .select('id, total_amount, discount, cash_paid, upi_paid, created_at, daily_bill_no, products')
-            .eq('user_id', userId)   // 🔐 HARD ISOLATION
+        const { data: rawItems, error } = await supabase
+            .from('transaction_items')
+            .select(`
+                quantity, unit_price, price, created_at, transaction_id, item_type,
+                transactions!inner ( daily_bill_no, discount, cash_paid, upi_paid, user_id ),
+                products ( name )
+            `)
+            .eq('transactions.user_id', userId)
             .gte('created_at', queryStart)
             .lte('created_at', queryEnd)
             .order('created_at', { ascending: true });
 
-
         if (error) throw error;
+        if (!rawItems || rawItems.length === 0) return res.status(404).json({ message: "No records found." });
 
-        if (!txs || txs.length === 0) {
-            return res.status(404).json({ message: "No transactions found." });
+        let finalData = [];
+        let columns = [];
+
+        if (type === "daily") {
+            columns = [
+                { header: 'Txn ID', key: 'transaction_id', width: 12 },
+                { header: 'Bill No', key: 'bill_no', width: 10 },
+                { header: 'Type', key: 'item_type', width: 12 },
+                { header: 'Date & Time', key: 'datetime', width: 22 },
+                { header: 'Product Name', key: 'product_name', width: 25 },
+                { header: 'Qty', key: 'quantity', width: 8 },
+                { header: 'Unit Price', key: 'unit_price', width: 12 },
+                { header: 'Line Total', key: 'line_total', width: 15 },
+                { header: 'Discount', key: 'discount', width: 12 },
+                { header: 'Cash Paid', key: 'cash_paid', width: 12 },
+                { header: 'UPI Paid', key: 'upi_paid', width: 12 }
+            ];
+
+            finalData = rawItems.map(item => ({
+                transaction_id: item.transaction_id,
+                bill_no: item.transactions?.daily_bill_no || "—",
+                item_type: item.item_type,
+                datetime: new Date(item.created_at).toLocaleString('en-IN'),
+                product_name: item.products?.name || "Unknown",
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                line_total: item.price,
+                discount: item.transactions?.discount || 0,
+                cash_paid: item.transactions?.cash_paid || 0,
+                upi_paid: item.transactions?.upi_paid || 0
+            }));
+
+        } else {
+            // MONTHLY: Aggregating by both Txn ID and Type
+            columns = [
+                { header: 'Txn ID', key: 'transaction_id', width: 12 },
+                { header: 'Bill No', key: 'bill_no', width: 12 },
+                { header: 'Type', key: 'item_type', width: 12 },
+                { header: 'Date & Time', key: 'datetime', width: 22 },
+                { header: 'Items Sold Count', key: 'items_count', width: 15 },
+                { header: 'Discount', key: 'discount', width: 12 },
+                { header: 'Cash Paid', key: 'cash_paid', width: 12 },
+                { header: 'UPI Paid', key: 'upi_paid', width: 12 }
+            ];
+
+            const summaryMap = new Map();
+
+            rawItems.forEach(item => {
+                // Create a unique key for each TxnID + Type combination
+                const mapKey = `${item.transaction_id}_${item.item_type}`;
+                
+                if (!summaryMap.has(mapKey)) {
+                    summaryMap.set(mapKey, {
+                        transaction_id: item.transaction_id,
+                        bill_no: item.transactions?.daily_bill_no || "—",
+                        item_type: item.item_type,
+                        datetime: new Date(item.created_at).toLocaleString('en-IN'),
+                        items_count: 0,
+                        discount: item.transactions?.discount || 0,
+                        cash_paid: item.transactions?.cash_paid || 0,
+                        upi_paid: item.transactions?.upi_paid || 0
+                    });
+                }
+                summaryMap.get(mapKey).items_count += item.quantity;
+            });
+
+            finalData = Array.from(summaryMap.values());
         }
 
-        // EXPAND into per-item rows
-        const expandedRows = expandTransactionItems(txs);
-
-        const columns = [
-            { header: 'Txn ID', key: 'transaction_id', width: 12 },
-            { header: 'Bill No', key: 'bill_no', width: 10 },
-            { header: 'Date & Time', key: 'datetime', width: 22 },
-            { header: 'Product Name', key: 'product_name', width: 25 },
-            { header: 'Qty', key: 'quantity', width: 8 },
-            { header: 'Price', key: 'price', width: 12 },
-            { header: 'Line Total', key: 'line_total', width: 15 },
-            { header: 'Discount', key: 'discount', width: 12 },
-            { header: 'Cash Paid', key: 'cash_paid', width: 12 },
-            { header: 'UPI Paid', key: 'upi_paid', width: 12 },
-        ];
-
-        await sendExcelResponse(res, filename, expandedRows, columns);
+        await sendExcelResponse(res, filename, finalData, columns);
 
     } catch (err) {
-        console.error("EXPORT ERROR:", err);
-        res.status(500).json({ message: "Failed to generate Excel export", error: err.message });
+        console.error("Export Error:", err);
+        res.status(500).json({ message: "Export failed", error: err.message });
     }
 };

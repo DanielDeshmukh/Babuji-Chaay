@@ -18,57 +18,61 @@ const RefundComponent = () => {
   const getRefundQty = (itemId) =>
     selectedRefunds.find((x) => x.billing_item_id === itemId)?.refund_qty || 0;
 
-  const fetchBill = async () => {
-    if (loading) return;
-    setErrorMsg("");
-    setSuccessMsg("");
-    setSelectedRefunds([]);
-    setBillItems([]);
+ const fetchBill = async () => {
+  if (loading) return;
+  setErrorMsg("");
+  setSuccessMsg("");
+  setSelectedRefunds([]);
+  setBillItems([]);
 
-    if (!billDate || !billNo) return setErrorMsg("Enter Date & Bill No.");
+  if (!billDate || !billNo) return setErrorMsg("Enter Date & Bill No.");
 
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return setErrorMsg("Auth Error");
+  setLoading(true);
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return setErrorMsg("Auth Error");
 
-      const start = `${billDate}T00:00:00`;
-      const end = `${billDate}T23:59:59`;
+    /** * THE FIX: Explicitly define the window in IST (+05:30).
+     * This ensures the query captures early-morning transactions
+     * that technically fall into the previous day in UTC.
+     */
+    const start = `${billDate}T00:00:00+05:30`;
+    const end = `${billDate}T23:59:59+05:30`;
 
-      const { data: trx, error: trxErr } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("daily_bill_no", Number(billNo))
-        .eq("user_id", user.id)
-        .gte("created_at", start)
-        .lte("created_at", end)
-        .single();
+    const { data: trx, error: trxErr } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("daily_bill_no", Number(billNo))
+      .eq("user_id", user.id)
+      .gte("created_at", start)
+      .lte("created_at", end)
+      .single();
 
-      if (trxErr || !trx) throw new Error("Bill not found.");
+    if (trxErr || !trx) throw new Error("Bill not found.");
 
-      setTransaction(trx);
+    setTransaction(trx);
 
-      const { data: items, error: itemsErr } = await supabase
-        .from("transaction_items")
-        .select("id, product_id, quantity, unit_price, products(name)")
-        .eq("transaction_id", trx.id)
-        .eq("item_type", "SALE");
+    const { data: items, error: itemsErr } = await supabase
+      .from("transaction_items")
+      .select("id, product_id, quantity, unit_price, products(name)")
+      .eq("transaction_id", trx.id)
+      .eq("item_type", "SALE");
 
-      if (itemsErr || !items || items.length === 0) throw new Error("No sale items found.");
+    if (itemsErr || !items || items.length === 0) throw new Error("No sale items found.");
 
-      setBillItems(items.map(i => ({
-        id: i.id,
-        product_id: i.product_id,
-        quantity: Number(i.quantity),
-        price: Number(i.unit_price),
-        name: i.products?.name || "Unnamed Product"
-      })));
-    } catch (err) {
-      setErrorMsg(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setBillItems(items.map(i => ({
+      id: i.id,
+      product_id: i.product_id,
+      quantity: Number(i.quantity),
+      price: Number(i.unit_price),
+      name: i.products?.name || "Unnamed Product"
+    })));
+  } catch (err) {
+    setErrorMsg(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const updateRefundQty = (itemId, newQty) => {
     const item = billItems.find(i => i.id === itemId);
@@ -209,10 +213,13 @@ const RefundComponent = () => {
               <span className="font-black uppercase tracking-widest text-xs opacity-80">Total Refund Credit</span>
               <span className="text-4xl font-black tracking-tighter">₹{totalRefund.toFixed(2)}</span>
             </div>
-            <button onClick={submitRefund} disabled={loading || totalRefund === 0}
-              className="w-full bg-white text-destructive font-black uppercase py-5 rounded-2xl shadow-lg hover:bg-opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">
-              {loading ? "PROCESSING..." : "CONFIRM & PRINT REFUND"}
-            </button>
+             <button
+            onClick={submitRefund}
+            disabled={loading || totalRefund === 0}
+            className="w-full bg-primary text-primary-foreground font-black uppercase py-5 rounded-2xl shadow-lg hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
+          >
+            {loading ? "PROCESSING..." : "CONFIRM & PRINT REFUND"}
+          </button>
           </div>
         </section>
       )}

@@ -1,7 +1,17 @@
-// src/components/ProfileForm.jsx
-
 import { useState } from "react";
 import supabase from "../lib/supabaseClient";
+import { 
+  User, 
+  Mail, 
+  Lock, 
+  Camera, 
+  LogOut, 
+  Edit3, 
+  Save, 
+  XCircle, 
+  AlertTriangle,
+  Loader2
+} from "lucide-react";
 
 const ProfileForm = ({
   profile,
@@ -15,11 +25,11 @@ const ProfileForm = ({
   const [isEditing, setIsEditing] = useState(false);
   const [avatarFile, setAvatarFile] = useState(null);
 
-  // ✅ Guard: don’t render until both user and profile exist
   if (!user || !profile) {
     return (
-      <div className="text-center text-muted-foreground mt-10">
-        Loading profile...
+      <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+        <p className="text-muted-foreground font-medium italic tracking-wide">Synchronizing secure profile...</p>
       </div>
     );
   }
@@ -41,7 +51,6 @@ const ProfileForm = ({
         .getPublicUrl(filePath);
 
       const avatarUrl = publicUrl.publicUrl;
-
       setProfile((p) => ({ ...p, avatar_url: avatarUrl }));
 
       const { error } = await supabase
@@ -50,10 +59,10 @@ const ProfileForm = ({
         .eq("id", user.id);
       if (error) throw error;
 
-      setMessage("✅ Avatar updated");
+      setMessage("✅ Avatar updated successfully");
       setAvatarFile(null);
     } catch (err) {
-      setMessage("❌ Error uploading avatar: " + err.message);
+      setMessage("❌ Upload failed: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -62,7 +71,7 @@ const ProfileForm = ({
   const handleSave = async (e) => {
     e.preventDefault();
     if (!profile.full_name?.trim()) {
-      setMessage("⚠️ Full name cannot be empty.");
+      setMessage("⚠️ Full name is required.");
       return;
     }
     try {
@@ -75,10 +84,10 @@ const ProfileForm = ({
         updated_at: new Date(),
       });
       if (error) throw error;
-      setMessage("✅ Profile updated successfully");
+      setMessage("✅ Changes saved");
       setIsEditing(false);
     } catch (err) {
-      setMessage("❌ Failed to update profile: " + err.message);
+      setMessage("❌ Save failed: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -90,136 +99,150 @@ const ProfileForm = ({
       if (error) throw error;
       window.location.href = "/";
     } catch (err) {
-      setMessage("❌ Error signing out: " + err.message);
+      setMessage("❌ Sign out failed: " + err.message);
     }
   };
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center md:space-x-8 text-foreground">
-      {/* Avatar Section */}
-      <div className="flex flex-col items-center space-y-3">
-        <div className="w-28 h-28 rounded-full overflow-hidden bg-muted border-2 border-primary">
-          {profile?.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              alt="Avatar"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              No Avatar
+    <div className="w-full bg-card rounded-2xl transition-all duration-300">
+      <div className="flex flex-col md:flex-row md:items-start gap-10">
+        
+        {/* Avatar Section */}
+        <div className="flex flex-col items-center shrink-0">
+          <div className="relative group">
+            <div className="w-36 h-36 rounded-full overflow-hidden bg-muted border-4 border-background ring-4 ring-primary/5 shadow-2xl transition-transform duration-500 group-hover:scale-105">
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full bg-accent text-accent-foreground">
+                  <User size={56} className="opacity-30" />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <div>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setAvatarFile(e.target.files[0])}
-            className="hidden"
-            id="avatar-upload"
-          />
-          <label
-            htmlFor="avatar-upload"
-            className="cursor-pointer text-sm px-3 py-1 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90"
-          >
-            Change
-          </label>
+            
+            <label
+              htmlFor="avatar-upload"
+              className="absolute bottom-2 right-2 p-2.5 bg-primary text-primary-foreground rounded-full cursor-pointer shadow-xl hover:scale-110 active:scale-95 transition-all"
+              title="Change Photo"
+            >
+              <Camera size={20} />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setAvatarFile(e.target.files[0])}
+                className="hidden"
+                id="avatar-upload"
+              />
+            </label>
+          </div>
+
           {avatarFile && (
             <button
               onClick={uploadAvatar}
-              className="ml-2 text-sm px-3 py-1 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+              className="mt-6 w-full flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-600/20 transition-all animate-in zoom-in-95"
               disabled={loading}
             >
-              Save
+              <Save size={14} /> Commit Photo
             </button>
           )}
         </div>
-      </div>
 
-      {/* Profile Details Section */}
-      <div className="flex-1 mt-6 md:mt-0">
-        {isEditing ? (
-          <form onSubmit={handleSave} className="space-y-4">
-            <h3 className="text-lg font-semibold text-foreground">
-              Edit Profile
-            </h3>
+        {/* Info Section */}
+        <div className="flex-1 space-y-8">
+          {isEditing ? (
+            <form onSubmit={handleSave} className="space-y-5 animate-in fade-in slide-in-from-top-4">
+              <div className="space-y-4">
+                <div className="group relative">
+                  <User className="absolute left-4 top-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
+                  <input
+                    type="text"
+                    value={profile.full_name || ""}
+                    onChange={(e) => setProfile((p) => ({ ...p, full_name: e.target.value }))}
+                    className="w-full pl-12 pr-4 py-3 bg-muted/30 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 transition-all outline-none font-medium"
+                    placeholder="Full Name"
+                    disabled={loading}
+                  />
+                </div>
 
-            <input
-              type="text"
-              value={profile.full_name || ""}
-              onChange={(e) =>
-                setProfile((p) => ({ ...p, full_name: e.target.value }))
-              }
-              className="w-full border border-border rounded-lg p-3 bg-card text-foreground"
-              placeholder="Enter your full name"
-              disabled={loading}
-            />
+                <div className="group relative">
+                  <Lock className="absolute left-4 top-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
+                  <input
+                    type="number"
+                    value={profile.pin || ""}
+                    onChange={(e) => setProfile((p) => ({ ...p, pin: e.target.value.slice(0, 4) }))}
+                    className="w-full pl-12 pr-4 py-3 bg-muted/30 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 transition-all outline-none font-medium"
+                    placeholder="4-digit PIN (for admin logs)"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
 
-            <input
-              type="number"
-              value={profile.pin || ""}
-              onChange={(e) =>
-                setProfile((p) => ({
-                  ...p,
-                  pin: e.target.value.slice(0, 4),
-                }))
-              }
-              className="w-full border border-border rounded-lg p-3 bg-card text-foreground"
-              placeholder="Set 4-digit PIN"
-              disabled={loading}
-            />
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-2xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all"
+                >
+                  <Save size={18} /> {loading ? "Saving..." : "Save Changes"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-6 py-3 bg-muted text-muted-foreground rounded-2xl font-bold hover:bg-muted/80 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+              <div className="space-y-2">
+                <h2 className="text-3xl font-extrabold tracking-tight text-foreground">
+                  {profile.full_name || "Guest User"}
+                </h2>
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center gap-2 text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-lg border border-border/50">
+                    <Mail size={14} />
+                    <span className="text-xs font-bold tracking-tight uppercase">{user.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-lg border border-border/50">
+                    <Lock size={14} />
+                    <span className="text-xs font-bold tracking-tight uppercase">
+                      PIN: {profile.pin ? "Securely Set" : "Unset"}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 px-5 py-2 bg-primary hover:bg-primary/90 rounded-lg text-sm font-medium text-primary-foreground"
-              >
-                {loading ? "Saving..." : "Save"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="flex-1 px-5 py-2 bg-muted hover:bg-muted/80 rounded-lg text-sm font-medium text-muted-foreground"
-              >
-                Cancel
-              </button>
+              <div className="grid grid-cols-1 sm:flex flex-wrap gap-4 pt-6 border-t border-border/40">
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground rounded-xl text-sm font-bold transition-all hover:bg-accent/80 border border-border/50 shadow-sm"
+                >
+                  <Edit3 size={16} /> Edit Profile
+                </button>
+
+                <button
+                  onClick={handleLossDumpClick}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold transition-all hover:bg-amber-600 shadow-lg shadow-amber-500/20"
+                >
+                  <AlertTriangle size={16} /> Inventory Audit
+                </button>
+
+                <button
+                  onClick={signOut}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-destructive/5 text-destructive border border-destructive/10 rounded-xl text-sm font-bold transition-all hover:bg-destructive hover:text-white"
+                >
+                  <LogOut size={16} /> Sign Out
+                </button>
+              </div>
             </div>
-          </form>
-        ) : (
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-foreground">
-              {profile.full_name || "Your Name"}
-            </h2>
-            <p className="text-muted-foreground">{user.email}</p>
-            <p className="text-muted-foreground">
-              <span className="font-semibold">PIN:</span>{" "}
-              {profile.pin ? "****" : "Not set"}
-            </p>
-
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={() => setIsEditing(true)}
-                className="px-4 py-2 bg-primary hover:bg-primary/90 rounded-lg text-sm font-medium text-primary-foreground"
-              >
-                Edit Profile
-              </button>
-              <button
-                onClick={handleLossDumpClick}
-                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-sm font-medium text-black"
-              >
-                Log Loss/Dump
-              </button>
-              <button
-                onClick={signOut}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium text-white"
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

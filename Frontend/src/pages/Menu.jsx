@@ -1,17 +1,12 @@
 "use client";
 
-import React, {
-  useEffect,
-  useState,
-  useMemo,
-  useCallback
-} from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import supabase from "../lib/supabaseClient";
 import Header from "../components/Header";
 import PrintReceipt from "@/components/PrintReceipt";
 
 /* -------------------------------------------------
-   OFFER CALCULATOR (Memo-Friendly)
+   OFFER CALCULATOR (Fixed for Type-Safety & Display)
 ---------------------------------------------------*/
 const calculateOfferDiscount = (billItems, offers) => {
   let totalDiscount = 0;
@@ -20,8 +15,9 @@ const calculateOfferDiscount = (billItems, offers) => {
   for (const item of billItems) {
     let best = { discount: 0, name: null, id: null };
 
+    // FIX: Convert IDs to strings to ensure matching works regardless of DB type
     const relevant = offers.filter((o) =>
-      o.product_ids?.includes(item.product_id)
+      o.product_ids?.map(String).includes(String(item.product_id))
     );
 
     for (const offer of relevant) {
@@ -68,7 +64,6 @@ const Menu = () => {
   const [search, setSearch] = useState("");
   const [printJob, setPrintJob] = useState(null);
 
-
   const [billItems, setBillItems] = useState([]);
   const [showBill, setShowBill] = useState(false);
 
@@ -91,16 +86,15 @@ const Menu = () => {
       const { data, error } = await supabase.functions.invoke("get-todays-menu");
       if (error) throw error;
 
-      const formatted =
-        data?.todays_menu?.map((i) => ({
-          id: i.id,
-          product_id: i.product_id,
-          name: i.name || "Unnamed Product",
-          category: i.category || "Uncategorized",
-          price: Number(i.price) || 0,
-          quantity: i.quantity ?? 0,
-          is_available: i.is_available ?? true
-        })) || [];
+      const formatted = data?.todays_menu?.map((i) => ({
+        id: i.id,
+        product_id: i.product_id,
+        name: i.name || "Unnamed Product",
+        category: i.category || "Uncategorized",
+        price: Number(i.price) || 0,
+        quantity: i.quantity ?? 0,
+        is_available: i.is_available ?? true
+      })) || [];
 
       setMenuItems(formatted);
     } catch (err) {
@@ -111,7 +105,7 @@ const Menu = () => {
   }, []);
 
   /* -------------------------------------------------
-  FETCH SPECIAL NUMBER (LAST ENTRY)
+  FETCH SPECIAL NUMBER
   ---------------------------------------------------*/
   const fetchSpecialNumber = useCallback(async () => {
     try {
@@ -122,85 +116,29 @@ const Menu = () => {
         .limit(1)
         .maybeSingle();
 
-      if (error) {
-        console.error("Special number error:", error);
-        return;
-      }
-
-      if (data) {
-        setTodaysSpecialNumber(data.number);
-      }
+      if (error) throw error;
+      if (data) setTodaysSpecialNumber(data.number);
     } catch (err) {
       console.error("Fetch special number failed:", err);
     }
   }, []);
 
   /* -------------------------------------------------
-     BILL TOTAL (DERIVED)
-  ---------------------------------------------------*/
-  const billTotal = useMemo(() => {
-    return billItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
-  }, [billItems]);
-
-  /* -------------------------------------------------
- FILTERED MENU (DERIVED)
----------------------------------------------------*/
-  const filteredMenu = useMemo(
-    () =>
-      menuItems.filter((item) =>
-        item.name.toLowerCase().includes(search.toLowerCase())
-      ),
-    [menuItems, search]
-  );
-
-  /* -------------------------------------------------
-     BILL ITEM QUANTITY HELPER
-  ---------------------------------------------------*/
-  const getQuantity = useCallback(
-    (menuItemId) =>
-      billItems.find((b) => b.menu_item_id === menuItemId)?.quantity || 0,
-    [billItems]
-  );
-  /* -------------------------------------------------
-      SUGGESTED AMOUNTS FOR PAYMENT
-    ---------------------------------------------------*/
-
-
-
-  const suggestedAmounts = useMemo(() => {
-    if (billTotal <= 0) return [];
-
-    const roundUp = (n, step) => Math.ceil(n / step) * step;
-
-    const next10 = roundUp(billTotal, 10);
-    const next50 = roundUp(billTotal, 50);
-    const next100 = roundUp(billTotal, 100);
-
-    // remove duplicates & keep order
-    return [...new Set([next10, next50, next100])];
-  }, [billTotal]);
-
-
-
-
-
-
-  /* -------------------------------------------------
-     FETCH ACTIVE OFFERS
+  FETCH ACTIVE OFFERS (Constraint: User ID & Dates)
   ---------------------------------------------------*/
   const fetchActiveOffers = useCallback(async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const today = new Date().toISOString().split("T")[0];
       const dow = new Date().getDay();
 
       const { data, error } = await supabase
         .from("offers")
         .select("*")
-        .eq("is_active", true)
-        .or(`end_date.is.null,end_date.gte.${today}`);
+        .eq("user_id", user.id) // Filter by User ID
+        .eq("is_active", true);
 
       if (error) throw error;
 
@@ -208,12 +146,12 @@ const Menu = () => {
         offer.is_recurring
           ? offer.day_of_week === dow
           : (!offer.start_date || offer.start_date <= today) &&
-          (!offer.end_date || offer.end_date >= today)
+            (!offer.end_date || offer.end_date >= today)
       );
 
       setActiveOffers(filtered);
     } catch (err) {
-      console.error(err);
+      console.error("Offer Fetch Error:", err);
     }
   }, []);
 
@@ -225,9 +163,7 @@ const Menu = () => {
       const found = prev.find((b) => b.menu_item_id === item.id);
       if (found) {
         return prev.map((b) =>
-          b.menu_item_id === item.id
-            ? { ...b, quantity: b.quantity + 1 }
-            : b
+          b.menu_item_id === item.id ? { ...b, quantity: b.quantity + 1 } : b
         );
       }
       return [
@@ -247,16 +183,11 @@ const Menu = () => {
     setBillItems((prev) =>
       qty <= 0
         ? prev.filter((b) => b.menu_item_id !== id)
-        : prev.map((b) =>
-          b.menu_item_id === id ? { ...b, quantity: qty } : b
-        )
+        : prev.map((b) => (b.menu_item_id === id ? { ...b, quantity: qty } : b))
     );
   }, []);
 
-  const removeFromBill = useCallback(
-    (id) => updateBillQuantity(id, 0),
-    [updateBillQuantity]
-  );
+  const removeFromBill = useCallback((id) => updateBillQuantity(id, 0), [updateBillQuantity]);
 
   /* -------------------------------------------------
      DERIVED TOTALS
@@ -266,97 +197,86 @@ const Menu = () => {
     [billItems]
   );
 
-  const {
-    totalOfferDiscount,
-    appliedOfferNames
-  } = useMemo(
+  const { totalOfferDiscount, appliedOfferNames } = useMemo(
     () => calculateOfferDiscount(billItems, activeOffers),
     [billItems, activeOffers]
   );
 
-  const effectiveDiscount = specialDiscount
-    ? subtotal
-    : totalOfferDiscount;
-
+  const billTotal = subtotal; // For suggested amounts logic
+  const effectiveDiscount = specialDiscount ? subtotal : totalOfferDiscount;
   const finalTotal = Math.max(0, subtotal - effectiveDiscount);
-
-  const receiptAppliedOffers = useMemo(() => {
-    if (specialDiscount) return ["Special Number Discount"];
-    return appliedOfferNames;
-  }, [specialDiscount, appliedOfferNames]);
 
   const totalPaid = cashPaid + upiPaid;
   const pendingAmount = Math.max(0, finalTotal - totalPaid);
-  const changeToGive =
-    totalPaid > finalTotal ? totalPaid - finalTotal : 0;
+  const changeToGive = totalPaid > finalTotal ? totalPaid - finalTotal : 0;
 
-  /* -------------------------------------------------
-     PAYMENT
+  const getQuantity = useCallback(
+    (menuItemId) => billItems.find((b) => b.menu_item_id === menuItemId)?.quantity || 0,
+    [billItems]
+  );
+
+  const suggestedAmounts = useMemo(() => {
+    if (finalTotal <= 0) return [];
+    const roundUp = (n, step) => Math.ceil(n / step) * step;
+    return [...new Set([roundUp(finalTotal, 10), roundUp(finalTotal, 50), roundUp(finalTotal, 100)])];
+  }, [finalTotal]);
+
+ /* -------------------------------------------------
+     PAYMENT PROCESS (Fixed for Data Integrity)
   ---------------------------------------------------*/
-const handlePayment = async () => {
-  if (!billItems.length) {
-    alert("No items in the bill.");
-    return;
-  }
+/* -------------------------------------------------
+     PAYMENT PROCESS (Refactored for Print Integrity)
+  ---------------------------------------------------*/
+  const handlePayment = async () => {
+    // 1. Validation: Prevent processing empty bills
+    if (!billItems.length) return alert("No items in the bill.");
 
-  try {
-    // 1. AUTHENTICATION
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    const user = userData?.user;
-    if (userError || !user) throw new Error("Authentication failed. Please log in again.");
+    try {
+      // 2. Authentication: Ensure user is logged in
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication failed.");
 
-    // 2. PREPARE TRANSACTION PAYLOAD
-    const transactionPayload = {
-      user_id: user.id,
-      transaction_type: "SALE",
-      total_amount: Number(finalTotal.toFixed(2)),
-      discount: Number(effectiveDiscount.toFixed(2)),
-      cash_paid: Number(cashPaid.toFixed(2)),
-      upi_paid: Number(upiPaid.toFixed(2)),
-    };
+      // 3. Prepare Transaction: Map state to DB payload
+      const transactionPayload = {
+        user_id: user.id,
+        transaction_type: "SALE",
+        total_amount: Number(finalTotal.toFixed(2)),
+        discount: Number(effectiveDiscount.toFixed(2)),
+        cash_paid: Number(cashPaid.toFixed(2)),
+        upi_paid: Number(upiPaid.toFixed(2)),
+      };
 
-    console.log("🧾 INSERTING TRANSACTION...", transactionPayload);
+      // 4. Save Transaction: Insert into Supabase
+      const { data: sale, error: saleError } = await supabase
+        .from("transactions")
+        .insert(transactionPayload)
+        .select()
+        .single();
 
-    // 3. EXECUTE TRANSACTION INSERT
-    const { data: sale, error: saleError } = await supabase
-      .from("transactions")
-      .insert(transactionPayload)
-      .select()
-      .single();
+      if (saleError) throw saleError;
 
-    if (saleError) {
-      console.error("❌ TRANSACTION INSERT FAILED", saleError);
-      throw new Error(`Transaction failed: ${saleError.message}`);
-    }
+      // 5. Check for Special Number Match (Winner Logic)
+      const isWinner = Number(sale.daily_bill_no) === Number(todaysSpecialNumber);
+      if (isWinner) {
+        setIsSpecialActive(true);
+        setSpecialDiscount(true);
+      }
 
-    console.log("✅ TRANSACTION SUCCESS:", sale);
-    setCurrentBillNumber(sale.daily_bill_no);
+      // 6. Save Transaction Items: Link products to sale record
+      await supabase.from("transaction_items").insert(
+        billItems.map((item) => ({
+          transaction_id: sale.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.price,
+          item_type: "SALE",
+          user_id: user.id,
+        }))
+      );
 
-    // 4. PREPARE & INSERT TRANSACTION ITEMS
-    const itemsPayload = billItems.map((item) => ({
-      transaction_id: sale.id, 
-      product_id: item.product_id,
-      quantity: item.quantity,
-      unit_price: item.price,
-      item_type: "SALE",
-      user_id: user.id,
-    }));
-
-    const { error: itemsError } = await supabase
-      .from("transaction_items")
-      .insert(itemsPayload);
-
-    if (itemsError) {
-      console.error("❌ ITEMS INSERT FAILED", itemsError);
-
-    }
-
-    
-
-    // 6. TRIGGER PRINT JOB
-    setPrintJob({
-      type: "SALE",
-      data: {
+      // 7. Data Integrity Fix: Capture data in a local constant.
+      // Do not rely on React state variables (like printJob) immediately after setting them.
+      const receiptData = {
         shopName: "BABUJI CHAAY",
         billNo: sale.daily_bill_no,
         date: new Date().toLocaleString(),
@@ -367,59 +287,62 @@ const handlePayment = async () => {
           amt: b.price * b.quantity,
         })),
         subtotal: subtotal,
-        discount: Number(effectiveDiscount) || 0,
-        appliedOffers: receiptAppliedOffers, // Pass the offer names here
-        cashPaid: Number(cashPaid) || 0,
-        upiPaid: Number(upiPaid) || 0,
-        total: Number(finalTotal) || 0,
-      },
-    });
+        discount: isWinner ? subtotal : effectiveDiscount,
+        appliedOffers: isWinner ? ["SPECIAL NUMBER FREE BILL"] : appliedOfferNames,
+        cashPaid: isWinner ? 0 : cashPaid,
+        upiPaid: isWinner ? 0 : upiPaid,
+        total: isWinner ? 0 : finalTotal,
+      };
 
-    // 7. UI RESET
-    // We clear billItems after a short delay to ensure the PrintJob state has captured the data
-    setTimeout(() => {
-      setBillItems([]);
-      setShowBill(false);
-      setCashPaid(0);
-      setUpiPaid(0);
-      setPendingCashInput("");
-      setCurrentBillNumber(null);
-    }, 500);
+      // 8. Trigger Print Job: Pass the local constant directly
+      setPrintJob({
+        type: "SALE",
+        data: receiptData,
+      });
 
-  } catch (err) {
-    console.error("💥 PAYMENT PROCESS ERROR:", err);
-    alert(err.message || "An unexpected error occurred during payment.");
-  }
-};
+      // 9. Debug Logging: Log the actual data being sent to the printer
+      console.group("Print Job Initialized");
+      console.log("Status: Success");
+      console.log("Bill No:", receiptData.billNo);
+      console.log("Receipt Data Object:", receiptData);
+      console.groupEnd();
 
-  /* -------------------------------------------------
-     INIT
-  ---------------------------------------------------*/
+      // 10. Clean Up: Reset billing state after a delay.
+      // 2000ms ensures the PrintReceipt component has finished rendering 
+      // and the browser has captured the DOM before the data is cleared.
+      setTimeout(() => {
+        setBillItems([]);
+        setShowBill(false);
+        setCashPaid(0);
+        setUpiPaid(0);
+        setSpecialDiscount(false);
+        setIsSpecialActive(false);
+        setPendingCashInput("");
+      }, 2000); 
+
+    } catch (err) {
+      console.error("Payment Error:", err);
+      alert(err.message);
+    }
+  };
   useEffect(() => {
     fetchMenu();
     fetchSpecialNumber();
     fetchActiveOffers();
-  }, []);
+  }, [fetchMenu, fetchSpecialNumber, fetchActiveOffers]);
 
-  /* -------------------------------------------------
-     RENDER
-  ---------------------------------------------------*/
+  const filteredMenu = useMemo(
+    () => menuItems.filter((i) => i.name.toLowerCase().includes(search.toLowerCase())),
+    [menuItems, search]
+  );
+
   if (loading) return <p className="text-center mt-10">Loading menu...</p>;
 
   return (
-    <div
-      className={`min-h-screen flex flex-col bg-background transition-all ${isSpecialActive
-        ? "animate-[pulse_2s_ease-in-out_infinite]"
-        : ""
-        }`}
-    >
+    <div className={`min-h-screen flex flex-col bg-background transition-all ${isSpecialActive ? "animate-pulse" : ""}`}>
       <Header />
-
       <main className="flex-grow p-4 md:p-8 max-w-7xl mx-auto w-full pt-20">
-        <h2 className="text-2xl font-bold text-center text-primary">
-          Today’s Menu
-        </h2>
-
+        <h2 className="text-2xl font-bold text-center text-primary">Today’s Menu</h2>
         <input
           type="text"
           value={search}
@@ -428,272 +351,89 @@ const handlePayment = async () => {
           className="w-full p-3 my-6 rounded-lg border border-border bg-card"
         />
 
-        {/* MENU GRID */}
-        {filteredMenu.length === 0 ? (
-          <p className="text-center text-foreground">
-            Nothing found.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filteredMenu.map((item) => (
-              <div
-                key={item.id}
-                className="p-4 bg-card border rounded-lg flex flex-col"
-              >
-                <h3 className="text-lg font-bold text-primary">
-                  {item.name}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Stock: {item.quantity}
-                </p>
-                <p className="text-primary text-xl font-bold">
-                  ₹{item.price}
-                </p>
-
-                <div className="flex items-center justify-between mt-3">
-                  <button
-                    className="bg-red-600 text-white w-10 h-10 rounded-full"
-                    onClick={() =>
-                      updateBillQuantity(
-                        item.id,
-                        getQuantity(item.id) - 1
-                      )
-                    }
-                  >
-                    -
-                  </button>
-
-                  <span className="font-bold text-primary">
-                    {getQuantity(item.id)}
-                  </span>
-
-                  <button
-                    className="bg-green-600 text-white w-10 h-10 rounded-full"
-                    onClick={() => addToBill(item)}
-                  >
-                    +
-                  </button>
-
-                  <button
-                    onClick={() => removeFromMenu(item.id)}
-                    className="bg-red-700 text-white px-3 py-2 rounded"
-                  >
-                    Remove
-                  </button>
-                </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredMenu.map((item) => (
+            <div key={item.id} className="p-4 bg-card border rounded-lg flex flex-col shadow-sm">
+              <h3 className="text-lg font-bold text-primary">{item.name}</h3>
+              <p className="text-sm text-muted-foreground">Stock: {item.quantity}</p>
+              <p className="text-primary text-xl font-bold">₹{item.price}</p>
+              <div className="flex items-center justify-between mt-3">
+                <button className="bg-red-600 text-white w-10 h-10 rounded-full" onClick={() => updateBillQuantity(item.id, getQuantity(item.id) - 1)}>-</button>
+                <span className="font-bold text-primary">{getQuantity(item.id)}</span>
+                <button className="bg-green-600 text-white w-10 h-10 rounded-full" onClick={() => addToBill(item)}>+</button>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
 
         {billItems.length > 0 && (
-          <button
-            className="fixed bottom-6 right-6 bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg"
-            onClick={() => setShowBill(true)}
-          >
-            View Bill
+          <button className="fixed bottom-6 right-6 bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg z-40" onClick={() => setShowBill(true)}>
+            View Bill ({billItems.length})
           </button>
         )}
 
         {/* SIDEBAR BILL */}
-        <div
-          className={`
-    fixed top-0 right-0 
-    h-screen w-full 
-    md:max-w-md 
-    z-50
-    bg-card text-card-foreground 
-    shadow-xl p-6 
-    transition-transform duration-300 
-    flex flex-col 
-    ${showBill ? "translate-x-0" : "translate-x-full"}
-  `}
-        >
-          {/* CLOSE BUTTON */}
-          <button
-            className="text-red-600 dark:text-red-400 font-bold ml-auto mb-4"
-            onClick={() => setShowBill(false)}
-          >
-            Close
-          </button>
+        <div className={`fixed top-0 right-0 h-screen w-full md:max-w-md z-50 bg-card shadow-xl p-6 transition-transform duration-300 flex flex-col ${showBill ? "translate-x-0" : "translate-x-full"}`}>
+          <button className="text-red-600 font-bold ml-auto mb-4" onClick={() => setShowBill(false)}>Close</button>
+          <h2 className="text-2xl font-bold mb-4">Your Bill</h2>
 
-          {/* BILL TITLE */}
-          <h2 className="text-2xl font-bold mb-2">Your Bill</h2>
-
-          {currentBillNumber && (
-            <p className="font-bold mb-4">Bill #{currentBillNumber}</p>
-          )}
-
-          {/* BILL ITEMS (scrollable, auto height) */}
-          <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1">
+          <div className="flex-1 overflow-y-auto flex flex-col gap-3">
             {billItems.map((item) => (
-              <div
-                key={item.menu_item_id}
-                className="p-3 bg-background border border-border rounded-lg shadow-sm"
-              >
-                <div className="flex justify-between">
-                  {/* NAME + PRICE */}
+              <div key={item.menu_item_id} className="p-3 bg-background border rounded-lg">
+                <div className="flex justify-between items-center">
                   <div>
                     <p className="font-semibold">{item.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      ₹{item.price} × {item.quantity}
-                    </p>
+                    <p className="text-sm text-muted-foreground">₹{item.price} × {item.quantity}</p>
                   </div>
-
-                  {/* CONTROLS */}
                   <div className="flex items-center gap-2">
-                    <button
-                      className="bg-red-600 text-white w-8 h-8 rounded-full"
-                      onClick={() =>
-                        updateBillQuantity(item.menu_item_id, item.quantity - 1)
-                      }
-                    >
-                      -
-                    </button>
-
+                    <button className="bg-red-600 text-white w-8 h-8 rounded-full" onClick={() => updateBillQuantity(item.menu_item_id, item.quantity - 1)}>-</button>
                     <span className="font-semibold">{item.quantity}</span>
-
-                    <button
-                      className="bg-green-700 text-white w-8 h-8 rounded-full"
-                      onClick={() =>
-                        updateBillQuantity(item.menu_item_id, item.quantity + 1)
-                      }
-                    >
-                      +
-                    </button>
-
-                    <button
-                      onClick={() => removeFromBill(item.menu_item_id)}
-                      className="text-red-600 font-bold"
-                    >
-                      x
-                    </button>
+                    <button className="bg-green-700 text-white w-8 h-8 rounded-full" onClick={() => updateBillQuantity(item.menu_item_id, item.quantity + 1)}>+</button>
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* SUMMARY SECTION */}
-          <div className="mt-4 border-t border-border pt-4">
-            <p className="text-lg font-semibold">
-              Subtotal: ₹{subtotal.toFixed(2)}
-            </p>
-
-            {/* OFFER DISCOUNT */}
-            {!specialDiscount && totalOfferDiscount > 0 && (
-              <div className="mt-3 p-3 bg-green-700/10 border border-green-700 rounded-lg">
-                <p className="text-green-700 font-bold">
-                  Offer Discount: -₹{totalOfferDiscount.toFixed(2)}
-                </p>
-                <ul className="list-disc ml-4 text-sm mt-1 text-green-700">
-                  {appliedOfferNames.map((o) => (
-                    <li key={o}>{o}</li>
-                  ))}
-                </ul>
+          <div className="mt-4 border-t pt-4">
+            <p className="text-lg">Subtotal: ₹{subtotal.toFixed(2)}</p>
+            
+            {/* APPLIED OFFERS DISPLAY */}
+            {appliedOfferNames.length > 0 && !specialDiscount && (
+              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-green-700">
+                <p className="text-xs font-bold uppercase mb-1">Applied Offers:</p>
+                {appliedOfferNames.map(name => <p key={name} className="text-sm font-semibold">• {name}</p>)}
+                <p className="text-sm font-bold mt-1">Discount: -₹{totalOfferDiscount.toFixed(2)}</p>
               </div>
             )}
 
-            {/* SPECIAL DISCOUNT BANNER */}
-            {specialDiscount && (
-              <div className="p-3 bg-accent/20 border border-accent rounded-lg mt-3">
-                <p className="text-accent font-bold text-lg animate-pulse">
-                  🎉 Special Number Discount Applied! 🎉
-                </p>
-              </div>
-            )}
+            <p className="font-bold text-2xl mt-2 text-primary">Total: ₹{finalTotal.toFixed(2)}</p>
 
-            {/* FINAL TOTAL */}
-            <p className="font-bold text-2xl mt-4">
-              Final Total: ₹{finalTotal.toFixed(2)}
-            </p>
-
-            {/* SUGGESTED AMOUNTS */}
             <div className="mt-3 flex flex-wrap gap-2">
-              {suggestedAmounts.map((amt, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCashPaid(amt)}
-                  className={`px-4 py-2 rounded-lg font-bold transition ${cashPaid === amt
-                    ? "bg-green-600 text-white"
-                    : "bg-primary text-primary-foreground"
-                    }`}
-                >
-                  ₹{amt}
-                </button>
+              {suggestedAmounts.map((amt) => (
+                <button key={amt} onClick={() => setCashPaid(amt)} className={`px-4 py-2 rounded-lg font-bold ${cashPaid === amt ? "bg-green-600 text-white" : "bg-secondary text-secondary-foreground border"}`}>₹{amt}</button>
               ))}
             </div>
 
-            {/* PENDING AMOUNT */}
             {pendingAmount > 0 && (
-              <div>
-                <p className="text-red-600 font-bold mt-3">
-                  Pending: ₹{pendingAmount.toFixed(2)}
-                </p>
-
-                <input
-                  type="number"
-                  className="p-2 w-full border border-border rounded my-2 bg-background"
-                  placeholder="Enter amount"
-                  value={pendingCashInput}
-                  onChange={(e) => setPendingCashInput(e.target.value)}
-                />
-
+              <div className="mt-4">
+                <p className="text-red-600 font-bold">Pending: ₹{pendingAmount.toFixed(2)}</p>
+                <input type="number" className="p-2 w-full border rounded my-2 bg-background" placeholder="Enter amount" value={pendingCashInput} onChange={(e) => setPendingCashInput(e.target.value)} />
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const val = Number(pendingCashInput);
-                      if (!val) return;
-                      setCashPaid(cashPaid + val);
-                      setPendingCashInput("");
-                    }}
-                    className="bg-primary text-primary-foreground px-3 py-2 rounded-lg"
-                  >
-                    Pay Cash
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      const val = Number(pendingCashInput);
-                      if (!val) return;
-                      setUpiPaid(upiPaid + val);
-                      setPendingCashInput("");
-                    }}
-                    className="bg-green-700 text-white px-3 py-2 rounded-lg"
-                  >
-                    Pay UPI
-                  </button>
+                  <button onClick={() => { setCashPaid(cashPaid + Number(pendingCashInput)); setPendingCashInput(""); }} className="bg-primary text-primary-foreground px-3 py-2 rounded-lg flex-1 font-bold">Cash</button>
+                  <button onClick={() => { setUpiPaid(upiPaid + Number(pendingCashInput)); setPendingCashInput(""); }} className="bg-green-700 text-white px-3 py-2 rounded-lg flex-1 font-bold">UPI</button>
                 </div>
               </div>
             )}
 
-            {/* CHANGE TO RETURN */}
-            {changeToGive > 0 && (
-              <p className="text-green-600 font-bold mt-2">
-                Return ₹{changeToGive.toFixed(2)}
-              </p>
-            )}
+            {changeToGive > 0 && <p className="text-green-600 font-bold mt-2">Return ₹{changeToGive.toFixed(2)}</p>}
 
-            {/* COMPLETE PAYMENT */}
-            <button
-              onClick={handlePayment}
-              disabled={pendingAmount > 0 || billItems.length === 0}
-              className="mt-4 w-full bg-primary text-primary-foreground p-3 rounded-xl font-bold disabled:opacity-50"
-            >
+            <button onClick={handlePayment} disabled={pendingAmount > 0 || billItems.length === 0} className="mt-4 w-full bg-primary text-primary-foreground p-3 rounded-xl font-bold disabled:opacity-50">
               Complete Payment
             </button>
           </div>
         </div>
-        {printJob && (
-          <PrintReceipt
-            type={printJob.type}
-            data={printJob.data}
-            onClose={() => setPrintJob(null)}
-          />
-        )}
-
-
-
+        {printJob && <PrintReceipt type={printJob.type} data={printJob.data} onClose={() => setPrintJob(null)} />}
       </main>
     </div>
   );
