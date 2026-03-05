@@ -25,12 +25,10 @@ const CreationPage = () => {
             <InventoryManager />
           </div>
 
-          {/* Offer Manager */}
           <div className="bg-white shadow-lg rounded-2xl my-1 p-6 sm:p-8 border-[#E5E7EB]">
             <OfferManager />
           </div>
 
-          {/* Refund Component */}
           <div className="bg-white shadow-lg rounded-2xl my-1 p-6 sm:p-8 border-[#E5E7EB]">
             <RefundComponent />
           </div>

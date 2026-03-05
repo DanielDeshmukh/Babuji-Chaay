@@ -33,7 +33,7 @@ const numberLayout = {
 
 const KeyboardContext = createContext({
   activeInput: null,
-  setActiveInput: () => {},
+  setActiveInput: () => { },
   keyboardRef: null,
 });
 
@@ -54,6 +54,11 @@ export const KeyboardProvider = ({ children }) => {
       const target = e.target;
 
       if (!(target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+
+
+      target.readOnly = false; 
+      target.setAttribute("inputmode", "none");
+
 
       if (target.hasAttribute("data-no-keyboard")) return;
 
@@ -93,7 +98,6 @@ export const KeyboardProvider = ({ children }) => {
     document.addEventListener("focusin", handleFocusIn);
     document.addEventListener("focusout", handleFocusOut);
 
-    // 🧩 Prevent blur when clicking inside keyboard
     const handleGlobalMouseDown = (e) => {
       if (
         keyboardWrapperRef.current &&

@@ -11,10 +11,12 @@ export const generateSalesReport = async (req, res) => {
     // Extract token from query to pass it forward to the PDF download link
     const { start, end, format, theme, token } = req.query;
 
-    if (!start || !end) {
-      res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
-      return res.status(400).json({ error: "Missing date range parameters" });
-    }
+  if (!start || !end) {
+  // Echo the requesting origin instead of hardcoding 5173
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  return res.status(400).json({ error: "Missing date range parameters" });
+}
 
     // Fetch data
     const { data, error } = await supabase
@@ -241,9 +243,10 @@ export const generateSalesReport = async (req, res) => {
     res.setHeader("Content-Type", "text/html");
     res.send(html);
 
-  } catch (err) {
-    console.error(err);
-    res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
-    res.status(500).json({ error: err.message });
-  }
+} catch (err) {
+  console.error(err);
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.status(500).json({ error: err.message });
+}
 };

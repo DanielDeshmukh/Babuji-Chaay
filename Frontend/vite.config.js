@@ -3,20 +3,15 @@ import react from "@vitejs/plugin-react"
 import path from "path"
 
 export default defineConfig({
+  base: './', 
   plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
   },
-  server: {
-    proxy: {
-      // Requests starting with /api will be forwarded to localhost:3000
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-        secure: false,
-      },
-    },
-  },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+  }
 })

@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
-import  supabase  from "@/lib/supabaseClient"; // ✅ ensure correct path
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { App as CapApp } from '@capacitor/app';
+import supabase from "@/lib/supabaseClient";
 import SplashScreen from "./pages/SplashScreen";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
@@ -16,76 +17,112 @@ import Login from "./pages/Login";
 import Background from "./components/Background.jsx";
 import "./App.css";
 
-// ✅ Create context for user info
 export const UserContext = createContext(null);
 export const useUser = () => useContext(UserContext);
 
 function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const isVisibleRoute = location.pathname === "/" || location.pathname === "/login";
+  const isVisibleRoute = location.pathname === "/" || location.pathname === "/login" || location.pathname === "/splashscreen";
 
-  // ✅ Fetch current user + profile once
+  useEffect(() => {
+    const setupDeepLink = async () => {
+      CapApp.addListener('appUrlOpen', async (event) => {
+        console.log('🔗 Deep Link received:', event.url);
+        const url = new URL(event.url);
+        const hash = url.hash;
+
+        if (hash && hash.includes("access_token")) {
+          const params = new URLSearchParams(hash.substring(1));
+          const access_token = params.get("access_token");
+          const refresh_token = params.get("refresh_token");
+
+          if (access_token) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token,
+              refresh_token,
+            });
+
+            if (!error && data.session) {
+              console.log("OAuth Session Manually Set via Deep Link");
+              setUser(data.session.user);
+              navigate("/home", { replace: true });
+            }
+          }
+        }
+      });
+    };
+
+    setupDeepLink();
+
+    return () => {
+      CapApp.removeAllListeners();
+    };
+  }, [navigate]);
+// Frontend/src/App.jsx
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        // 1️⃣ Get session user
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
-
-        if (error) throw error;
-        if (!user) {
-          console.log("⚠️ No user logged in");
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) throw sessionError;
+        
+        if (!session?.user) {
+          console.log("⚠️ No active session found");
           setUser(null);
           setProfile(null);
           return;
         }
 
-        setUser(user);
-        console.log("✅ Auth User:", user);
+        const currentUser = session.user;
+        setUser(currentUser);
+        console.log("✅ User Session Found:", currentUser.email);
 
-        // 2️⃣ Fetch profile from profiles table
+        // Fetch profile
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", user.id)
+          .eq("id", currentUser.id)
           .single();
 
-        if (profileError) throw profileError;
-
-        setProfile(profileData);
-        console.log("✅ Profile Data:", profileData);
-
+        if (!profileError) {
+          setProfile(profileData);
+          console.log("✅ Profile Loaded:", profileData);
+        }
       } catch (err) {
-        console.error("❌ Error fetching user/profile:", err.message);
+        console.error(" Auth Initialization Error:", err.message);
       }
     };
 
     fetchUserData();
 
-    // 🔁 Listen to session changes (login/logout)
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Listen for Auth changes (Sign in/out)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
-        console.log("🟢 Session user changed:", session.user);
       } else {
         setUser(null);
         setProfile(null);
-        console.log("🔴 User signed out");
       }
     });
 
-    return () => {
-      subscription.subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  // ✅ Log combined info in dev tools each render
+  // 3️⃣ Navigation Guard: Force move logged-in users away from Auth pages
   useEffect(() => {
-    console.log("👤 Current User Context:", { user, profile });
+    const authRoutes = ["/", "/login", "/splashscreen"];
+    if (user && authRoutes.includes(location.pathname)) {
+      console.log("🚀 User exists, moving from", location.pathname, "to /home");
+      navigate("/home", { replace: true });
+    }
+  }, [user, location.pathname, navigate]);
+
+  // Debug Logger
+  useEffect(() => {
+    console.log("👤 Context Update:", { userPresent: !!user, profilePresent: !!profile });
   }, [user, profile]);
 
   return (
@@ -94,7 +131,6 @@ function App() {
         <div className="min-h-screen text-white relative">
           <Background />
 
-          {/* ✅ Keep toggle mounted, only hide visually */}
           <div
             className={`absolute top-4 right-4 z-50 transition-opacity duration-300 ${
               isVisibleRoute

@@ -12,18 +12,13 @@ import { supabaseServer } from "../middleware/auth.js";
 export const viewTransactions = async (req, res) => {
   try {
     const userId = req.userId;
-    // Extract date filters from query parameters
     const { start, end } = req.query;
 
-    /* -------------------------------
-        FETCH TRANSACTIONS
-    -------------------------------- */
     let query = supabaseServer
       .from("transactions")
       .select("id, total_amount, discount, cash_paid, upi_paid, daily_bill_no, created_at, transaction_type")
       .eq("user_id", userId);
 
-    // Apply strict date filtering if parameters exist
     if (start && end) {
       const startDate = dayjs(start).startOf('day').toISOString();
       const endDate = dayjs(end).endOf('day').toISOString();
