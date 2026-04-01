@@ -127,11 +127,11 @@ The backend follows a modular **MVC structure** — managing business logic, dat
 
 | Layer | Technologies |
 |--------|---------------|
-| **Frontend** | React, Tailwind CSS, shadcn/ui, lucide-react, recharts |
+| **Frontend** | React, Tailwind CSS, react-icons, lucide-react, recharts |
 | **Backend** | Node.js, Express.js |
 | **Database** | Supabase (PostgreSQL via NeonDB) |
 | **Reports** | Backend-driven via controllers |
-| **Hosting** | Vercel / Render / Supabase |
+| **Hosting** | Netlify / Render / Supabase |
 | **Version Control** | Git & GitHub |
 
 ---
