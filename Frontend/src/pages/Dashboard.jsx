@@ -16,6 +16,7 @@ import {
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import supabase from "@/lib/supabaseClient";
+import { openAuthenticatedUrl, syncBackendSession } from "@/lib/apiClient";
 import {
   Card,
   CardContent,
@@ -25,8 +26,6 @@ import {
 } from "../components/ui/card";
 
 const VISIBLE_POINTS = 7;
-// Ensure this is exactly "http://localhost:3000" in your .env
-const BACKEND_URL = import.meta.env.VITE_API_BASE?.replace(/\/$/, "");
 
 /**
  * SECURE ACTION HELPER
@@ -35,26 +34,10 @@ const BACKEND_URL = import.meta.env.VITE_API_BASE?.replace(/\/$/, "");
  */
 const openSecureLink = async (pathWithParams) => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-
-    if (!token) {
-      alert("Session expired. Please log in again.");
-      return;
-    }
-
-    // Combine Backend URL with the path
-    const fullUrl = `${BACKEND_URL}${pathWithParams}`;
-
-    // Append token as a query parameter so middleware catches it
-    const separator = fullUrl.includes("?") ? "&" : "?";
-    const authenticatedUrl = `${fullUrl}${separator}token=${token}`;
-
-    // Direct navigation - avoids the blob/fetch "Unauthorized" trap
-    window.open(authenticatedUrl, "_blank");
+    await openAuthenticatedUrl(pathWithParams);
   } catch (err) {
     console.error("Auth Link Error:", err);
-    alert("Authentication failed.");
+    alert(err.message || "Authentication failed.");
   }
 };
 
@@ -106,17 +89,9 @@ function Dashboard() {
   // 1) Session Sync to Backend on Mount
   useEffect(() => {
     const syncSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        await fetch(`${BACKEND_URL}/auth/session`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ access_token: session.access_token }),
-        }).catch(err => console.error("Session Sync failed", err));
-      }
+      await syncBackendSession().catch((err) =>
+        console.error("Session Sync failed", err)
+      );
     };
     syncSession();
   }, []);
