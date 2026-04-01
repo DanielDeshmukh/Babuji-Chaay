@@ -1,10 +1,29 @@
 // controllers/transactionController.js
 import dayjs from "dayjs";
-import puppeteer from "puppeteer";
 import dotenv from "dotenv";
 dotenv.config();
 
 import { supabaseServer } from "../middleware/auth.js";
+import { renderPdfFromHtml } from "../utils/PDFGenerator.js";
+
+const PDF_REQUEST_TIMEOUT_MS = Number(process.env.PDF_REQUEST_TIMEOUT_MS || 30000);
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function toMoney(value) {
+  return Number(value || 0).toFixed(2);
+}
+
+function safeFileNameFragment(value = "invoice") {
+  return String(value).replace(/[^a-zA-Z0-9-_]/g, "_");
+}
 
 /* =====================================================
     VIEW ALL TRANSACTIONS (LEDGER UI)
@@ -12,13 +31,25 @@ import { supabaseServer } from "../middleware/auth.js";
 export const viewTransactions = async (req, res) => {
   try {
     const userId = req.userId;
+    const authHeader = req.headers.authorization;
+    const headerToken =
+      authHeader && authHeader.startsWith("Bearer ")
+        ? authHeader.split(" ")[1]
+        : null;
+    const requestToken =
+      headerToken || req.query.token || req.cookies?.["sb-access-token"] || "";
+    // Extract date filters from query parameters
     const { start, end } = req.query;
 
+    /* -------------------------------
+        FETCH TRANSACTIONS
+    -------------------------------- */
     let query = supabaseServer
       .from("transactions")
       .select("id, total_amount, discount, cash_paid, upi_paid, daily_bill_no, created_at, transaction_type")
       .eq("user_id", userId);
 
+    // Apply strict date filtering if parameters exist
     if (start && end) {
       const startDate = dayjs(start).startOf('day').toISOString();
       const endDate = dayjs(end).endOf('day').toISOString();
@@ -104,6 +135,7 @@ export const viewTransactions = async (req, res) => {
 <script>
 const transactions = ${JSON.stringify(transactions || [])};
 const itemsByTx = ${JSON.stringify(itemsByTx || {})};
+const authToken = ${JSON.stringify(requestToken)};
 
 function loadPreview(billNo) {
   document.querySelectorAll('.row').forEach(r => r.classList.remove('active'));
@@ -112,7 +144,9 @@ function loadPreview(billNo) {
   if(!tx) return;
 
   const items = itemsByTx[tx.id] || [];
-  document.getElementById('download-link').href = "/api/transactions/daily/" + billNo + "/invoice?format=pdf";
+  const tokenQuery = authToken ? ("&token=" + encodeURIComponent(authToken)) : "";
+  const txIdQuery = tx?.id ? ("&txId=" + encodeURIComponent(tx.id)) : "";
+  document.getElementById('download-link').href = "/api/transactions/daily/" + billNo + "/invoice?format=pdf" + txIdQuery + tokenQuery;
 
   let subtotal = 0;
   let itemHtml = '';
@@ -189,28 +223,72 @@ if(transactions.length > 0) loadPreview(transactions[0].daily_bill_no);
 export const viewTransactionInvoice = async (req, res) => {
   try {
     const { billNo } = req.params;
+    const { format = "pdf", txId } = req.query;
     const userId = req.userId;
 
-    const { data: tx } = await supabaseServer
-      .from("transactions")
-      .select("id, total_amount, discount, cash_paid, upi_paid, daily_bill_no, created_at")
-      .eq("daily_bill_no", billNo)
-      .eq("user_id", userId)
-      .single();
+    if (format !== "pdf") {
+      return res.status(400).json({ message: "Unsupported format. Use format=pdf." });
+    }
+
+    let tx = null;
+
+    if (txId) {
+      const { data: txById, error: txIdErr } = await supabaseServer
+        .from("transactions")
+        .select("id, total_amount, discount, cash_paid, upi_paid, daily_bill_no, created_at")
+        .eq("id", txId)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (txIdErr) throw txIdErr;
+      tx = txById;
+    }
+
+    if (!tx) {
+      const { data: txRows, error: txErr } = await supabaseServer
+        .from("transactions")
+        .select("id, total_amount, discount, cash_paid, upi_paid, daily_bill_no, created_at")
+        .eq("daily_bill_no", billNo)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (txErr) throw txErr;
+      tx = txRows?.[0] || null;
+    }
 
     if (!tx) return res.status(404).send("Bill not found");
 
-    const { data: items } = await supabaseServer
+    const { data: items, error: itemsErr } = await supabaseServer
       .from("transaction_items")
       .select("quantity, unit_price, price, item_type, products(name)")
       .eq("transaction_id", tx.id)
       .eq("user_id", userId);
 
+    if (itemsErr) throw itemsErr;
+
+    const itemRows = (items || [])
+      .map((item) => {
+        const productName = escapeHtml(item.products?.name || "Item");
+        const itemTypeLabel = item.item_type === "REFUND" ? " (Return)" : "";
+
+        return `
+          <tr>
+            <td>${Number(item.quantity) || 0}</td>
+            <td>${productName}${itemTypeLabel}</td>
+            <td class="text-right">${toMoney(item.unit_price)}</td>
+            <td class="text-right">${toMoney(item.price)}</td>
+          </tr>`;
+      })
+      .join("");
+
     const html = `
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8" />
 <style>
+  @page { size: 58mm auto; margin: 0; }
   body { margin: 0; padding: 0; font-family: "Courier New", Courier, monospace; color: #000; }
   .receipt { width: 58mm; padding: 4mm; box-sizing: border-box; }
   .center { text-align: center; }
@@ -226,33 +304,50 @@ export const viewTransactionInvoice = async (req, res) => {
     <div class="center bold" style="font-size: 14px;">BABUJI CHAAY</div>
     <div class="center" style="font-size: 9px;">Mira Road (E), Thane</div>
     <div class="dashed-line"></div>
-    <div class="flex-row"><span>Bill: #${tx.daily_bill_no}</span><span>${dayjs(tx.created_at).format("DD/MM/YY HH:mm")}</span></div>
+    <div class="flex-row"><span>Bill: #${escapeHtml(tx.daily_bill_no)}</span><span>${dayjs(tx.created_at).format("DD/MM/YY HH:mm")}</span></div>
     <div class="dashed-line"></div>
     <table>
       <thead><tr><th style="width:10%">Q</th><th style="width:50%">Item</th><th style="width:20%" class="text-right">P</th><th style="width:20%" class="text-right">A</th></tr></thead>
       <tbody>
-        ${items?.map(i => `<tr><td>${i.quantity}</td><td>${i.products?.name}</td><td class="text-right">${Number(i.unit_price).toFixed(2)}</td><td class="text-right">${Number(i.price).toFixed(2)}</td></tr>`).join("")}
+        ${itemRows}
       </tbody>
     </table>
     <div class="dashed-line"></div>
-    <div class="flex-row"><span>CASH</span><span>₹${Number(tx.cash_paid || 0).toFixed(2)}</span></div>
-    <div class="flex-row"><span>UPI</span><span>₹${Number(tx.upi_paid || 0).toFixed(2)}</span></div>
+    <div class="flex-row"><span>CASH</span><span>Rs. ${toMoney(tx.cash_paid)}</span></div>
+    <div class="flex-row"><span>UPI</span><span>Rs. ${toMoney(tx.upi_paid)}</span></div>
     <div class="dashed-line"></div>
-    <div class="flex-row bold" style="font-size: 12px;"><span>TOTAL</span><span>₹${Number(tx.total_amount).toFixed(2)}</span></div>
+    <div class="flex-row bold" style="font-size: 12px;"><span>TOTAL</span><span>Rs. ${toMoney(tx.total_amount)}</span></div>
     <div class="dashed-line"></div>
   </div>
 </body>
 </html>`;
 
-    const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--disable-setuid-sandbox"] });
-    const page = await browser.newPage();
-    await page.setContent(html);
-    const pdf = await page.pdf({ width: "58mm", printBackground: true });
-    await browser.close();
+    const pdf = await renderPdfFromHtml(html, {
+      timeoutMs: PDF_REQUEST_TIMEOUT_MS,
+      waitUntil: "networkidle0",
+      pdfOptions: {
+        width: "58mm",
+        printBackground: true,
+        margin: { top: "0", right: "0", bottom: "0", left: "0" },
+      },
+    });
+
     res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="invoice-${safeFileNameFragment(String(tx.daily_bill_no))}.pdf"`
+    );
     res.send(pdf);
   } catch (err) {
-    console.error(err);
-    res.status(500).send("PDF Error");
+    console.error("Invoice PDF generation failed", {
+      message: err.message,
+      stack: err.stack,
+      billNo: req.params.billNo,
+      userId: req.userId,
+    });
+    res.status(500).json({
+      message:
+        "Failed to generate invoice PDF within 30 seconds. Please retry. If this keeps happening, contact support.",
+    });
   }
 };

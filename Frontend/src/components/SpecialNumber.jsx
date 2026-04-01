@@ -1,5 +1,5 @@
 "use client";
-// Frontend/src/components/SpecialNumber.jsx
+
 import React, { useEffect, useState, useCallback } from "react";
 import supabase from "@/lib/supabaseClient";
 

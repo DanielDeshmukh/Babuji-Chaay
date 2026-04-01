@@ -1,11 +1,13 @@
 "use client";
-// Frontend/src/pages/Menu.jsx
+
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import supabase from "../lib/supabaseClient";
 import Header from "../components/Header";
 import PrintReceipt from "@/components/PrintReceipt";
 
-
+/* -------------------------------------------------
+   OFFER CALCULATOR (Fixed for Type-Safety & Display)
+---------------------------------------------------*/
 const calculateOfferDiscount = (billItems, offers) => {
   let totalDiscount = 0;
   const appliedOfferMap = new Map();
@@ -218,17 +220,23 @@ const Menu = () => {
     const roundUp = (n, step) => Math.ceil(n / step) * step;
     return [...new Set([roundUp(finalTotal, 10), roundUp(finalTotal, 50), roundUp(finalTotal, 100)])];
   }, [finalTotal]);
-// Frontend/src/pages/Menu.jsx
+
  /* -------------------------------------------------
      PAYMENT PROCESS (Fixed for Data Integrity)
   ---------------------------------------------------*/
+/* -------------------------------------------------
+     PAYMENT PROCESS (Refactored for Print Integrity)
+  ---------------------------------------------------*/
   const handlePayment = async () => {
+    // 1. Validation: Prevent processing empty bills
     if (!billItems.length) return alert("No items in the bill.");
 
     try {
+      // 2. Authentication: Ensure user is logged in
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication failed.");
 
+      // 3. Prepare Transaction: Map state to DB payload
       const transactionPayload = {
         user_id: user.id,
         transaction_type: "SALE",
@@ -238,6 +246,7 @@ const Menu = () => {
         upi_paid: Number(upiPaid.toFixed(2)),
       };
 
+      // 4. Save Transaction: Insert into Supabase
       const { data: sale, error: saleError } = await supabase
         .from("transactions")
         .insert(transactionPayload)
@@ -246,6 +255,7 @@ const Menu = () => {
 
       if (saleError) throw saleError;
 
+      // 5. Check for Special Number Match (Winner Logic)
       const isWinner = Number(sale.daily_bill_no) === Number(todaysSpecialNumber);
       if (isWinner) {
         setIsSpecialActive(true);
@@ -290,14 +300,7 @@ const Menu = () => {
         data: receiptData,
       });
 
-      // 9. Debug Logging: Log the actual data being sent to the printer
-      console.group("Print Job Initialized");
-      console.log("Status: Success");
-      console.log("Bill No:", receiptData.billNo);
-      console.log("Receipt Data Object:", receiptData);
-      console.groupEnd();
-
-      // 10. Clean Up: Reset billing state after a delay.
+      // 9. Clean Up: Reset billing state after a delay.
       // 2000ms ensures the PrintReceipt component has finished rendering 
       // and the browser has captured the DOM before the data is cleared.
       setTimeout(() => {
@@ -308,7 +311,7 @@ const Menu = () => {
         setSpecialDiscount(false);
         setIsSpecialActive(false);
         setPendingCashInput("");
-      }, 2000); 
+      }, 2000);
 
     } catch (err) {
       console.error("Payment Error:", err);

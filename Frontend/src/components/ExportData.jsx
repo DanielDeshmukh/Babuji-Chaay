@@ -151,6 +151,7 @@ const ExportData = () => {
                 ))}
             </div>
 
+            {/* Date Selection Area */}
             <div className="p-4 rounded-xl bg-accent/5 border border-dashed border-border">
                 <label className="text-sm font-medium text-muted-foreground block mb-2 uppercase tracking-wider">
                     {selectedType === 'daily' ? "Choose Sales Date" : "Choose Sales Month"}
@@ -175,6 +176,7 @@ const ExportData = () => {
                 )}
             </div>
 
+            {/* Action Button */}
             <button
                 onClick={handleExport}
                 disabled={loading || !userId}
@@ -193,6 +195,7 @@ const ExportData = () => {
                 )}
             </button>
 
+            {/* Alerts */}
             {message && (
                 <div className={`p-4 rounded-xl text-sm font-medium text-center animate-in fade-in slide-in-from-bottom-2 ${
                     message.includes('❌') || message.includes('⚠️') 

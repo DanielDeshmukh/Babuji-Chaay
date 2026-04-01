@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import React, {
@@ -47,7 +45,7 @@ const initialFormState = {
   day_of_week: "",
   is_active: true,
 };
-// Frontend/src/components/OfferManager.jsx
+
 const OfferManager = () => {
   const [offers, setOffers] = useState([]);
   const [products, setProducts] = useState([]);

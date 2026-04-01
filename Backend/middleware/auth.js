@@ -28,6 +28,10 @@ export const requireAuth = async (req, res, next) => {
         else if (req.query.token) {
             token = req.query.token;
         }
+        // 3. Fallback: Check HttpOnly auth cookie
+        else if (req.cookies?.["sb-access-token"]) {
+            token = req.cookies["sb-access-token"];
+        }
 
         if (!token) {
             return res.status(401).json({ error: "Unauthorized: No token provided" });
@@ -40,9 +44,6 @@ export const requireAuth = async (req, res, next) => {
             console.error("❌ Supabase auth error:", error?.message);
             return res.status(401).json({ error: "Unauthorized: Invalid token" });
         }
-
-        // Log successful auth
-        console.log("✅ Auth User:", data.user.email);
 
         req.userId = data.user.id;
         req.user = data.user; // Optional: attach full user object

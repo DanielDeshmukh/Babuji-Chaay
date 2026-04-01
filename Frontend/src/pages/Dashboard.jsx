@@ -28,7 +28,11 @@ const VISIBLE_POINTS = 7;
 // Ensure this is exactly "http://localhost:3000" in your .env
 const BACKEND_URL = import.meta.env.VITE_API_BASE?.replace(/\/$/, "");
 
-
+/**
+ * SECURE ACTION HELPER
+ * Navigates directly to the backend by appending the token to the URL.
+ * This bypasses the "Blob" port 5173 / 3000 conflict.
+ */
 const openSecureLink = async (pathWithParams) => {
   try {
     const { data: { session } } = await supabase.auth.getSession();

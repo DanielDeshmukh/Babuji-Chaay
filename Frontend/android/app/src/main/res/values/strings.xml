@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Babuji Chaay</string>
-    <string name="title_activity_main">Babuji Chaay</string>
-    <string name="package_name">com.babujichaay.pos</string>
-    <string name="custom_url_scheme">com.babujichaay.pos</string>
-</resources>
