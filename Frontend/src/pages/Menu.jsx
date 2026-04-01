@@ -300,14 +300,7 @@ const Menu = () => {
         data: receiptData,
       });
 
-      // 9. Debug Logging: Log the actual data being sent to the printer
-      console.group("Print Job Initialized");
-      console.log("Status: Success");
-      console.log("Bill No:", receiptData.billNo);
-      console.log("Receipt Data Object:", receiptData);
-      console.groupEnd();
-
-      // 10. Clean Up: Reset billing state after a delay.
+      // 9. Clean Up: Reset billing state after a delay.
       // 2000ms ensures the PrintReceipt component has finished rendering 
       // and the browser has captured the DOM before the data is cleared.
       setTimeout(() => {
@@ -318,7 +311,7 @@ const Menu = () => {
         setSpecialDiscount(false);
         setIsSpecialActive(false);
         setPendingCashInput("");
-      }, 2000); 
+      }, 2000);
 
     } catch (err) {
       console.error("Payment Error:", err);
