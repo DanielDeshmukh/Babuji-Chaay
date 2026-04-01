@@ -27,7 +27,7 @@ const Register = () => {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: {
@@ -40,7 +40,6 @@ const Register = () => {
       setMessage(
         "Registration successful! Please check your email to confirm your account."
       );
-      console.log("User registered:", data);
     } catch (err) {
       setMessage(err.message);
     } finally {

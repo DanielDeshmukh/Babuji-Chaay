@@ -67,8 +67,6 @@ const Inventory = () => {
     try {
       const token = await getSessionToken();
 
-      console.log("🔐 Using token:", token);
-
       // ------------------------------
       // GET PRODUCTS
       // ------------------------------
@@ -80,7 +78,6 @@ const Inventory = () => {
 
       if (prodError) throw new Error(prodError.message);
       setProducts(prodResponse?.products || []);
-      console.log("📦 Products:", prodResponse?.products?.length);
 
       // ------------------------------
       // GET TODAY’S MENU
@@ -90,12 +87,9 @@ const Inventory = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-      console.log("📥 Raw menu response:", menuResponse);
-
       if (menuError) throw new Error(menuError.message);
 
       setMenuItems(menuResponse?.todays_menu || []);
-      console.log("🍽️ Menu items:", menuResponse?.todays_menu?.length);
     } catch (err) {
       console.error("❌ FetchAll Error:", err.message);
       notify(`Failed to fetch: ${err.message}`, "error");
@@ -278,3 +272,4 @@ const Inventory = () => {
 };
 
 export default Inventory;
+
