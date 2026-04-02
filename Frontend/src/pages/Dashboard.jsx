@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, forwardRef } from "react";
+import React, { useState, useEffect } from "react";
 import { TrendingUp, Users, DollarSign, ShoppingCart, Receipt, FileText } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -24,6 +24,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
+import { Input } from "../components/ui/input";
 
 const VISIBLE_POINTS = 7;
 
@@ -40,23 +41,6 @@ const openSecureLink = async (pathWithParams) => {
     alert(err.message || "Authentication failed.");
   }
 };
-
-const NoKeyboardInput = forwardRef(
-  ({ value, onClick, placeholder, className }, ref) => (
-    <input
-      ref={ref}
-      value={value || ""}
-      onClick={(e) => {
-        e.preventDefault();
-        onClick?.(e);
-      }}
-      onFocus={(e) => e.target.blur()}
-      readOnly
-      placeholder={placeholder}
-      className={className}
-    />
-  )
-);
 
 const formatCurrency = (v) =>
   typeof v === "number" ? `₹${v.toLocaleString("en-IN")}` : v;
@@ -336,10 +320,10 @@ const getDateParams = (type) => {
                   <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
                     <button onClick={() => handleDownloadReport("daily")} className="w-full py-2 bg-muted rounded-lg text-sm">Daily Report</button>
                     <div className="space-y-2 pt-2 border-t border-border">
-                      <DatePicker selected={specificDate} onChange={setSpecificDate} placeholderText="Specific Date" customInput={<NoKeyboardInput className={datePickerClassName} />} />
+                      <DatePicker selected={specificDate} onChange={setSpecificDate} placeholderText="Specific Date" customInput={<Input className={datePickerClassName} />} />
                       <div className="grid grid-cols-2 gap-2">
-                        <DatePicker selected={startDate} onChange={setStartDate} selectsStart startDate={startDate} endDate={endDate} placeholderText="Start" customInput={<NoKeyboardInput className={datePickerClassName} />} />
-                        <DatePicker selected={endDate} onChange={setEndDate} selectsEnd startDate={startDate} endDate={endDate} minDate={startDate} placeholderText="End" customInput={<NoKeyboardInput className={datePickerClassName} />} />
+                        <DatePicker selected={startDate} onChange={setStartDate} selectsStart startDate={startDate} endDate={endDate} placeholderText="Start" customInput={<Input className={datePickerClassName} />} />
+                        <DatePicker selected={endDate} onChange={setEndDate} selectsEnd startDate={startDate} endDate={endDate} minDate={startDate} placeholderText="End" customInput={<Input className={datePickerClassName} />} />
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => handleDownloadReport("specific")} disabled={!specificDate} className="flex-1 py-2 bg-primary text-white rounded-lg text-xs disabled:opacity-50">Day</button>

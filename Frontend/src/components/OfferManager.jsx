@@ -1,36 +1,12 @@
 "use client";
 
-import React, {
-  useEffect,
-  useState,
-  useMemo,
-  forwardRef,
-  useCallback,
-} from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import supabase from "../lib/supabaseClient";
 
 
 const dayNames = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ];
-
-  const NoKeyboardInput = forwardRef(
-    ({ value, onClick, placeholder, className }, ref) => (
-      <input
-        ref={ref}
-        value={value || ""}
-        onClick={(e) => {
-          e.preventDefault();
-          onClick?.(e);
-        }}
-        onFocus={(e) => e.target.blur()}
-        readOnly
-        data-no-keyboard
-        placeholder={placeholder}
-        className={className}
-      />
-    )
-  );
 
 const initialFormState = {
   id: null,
