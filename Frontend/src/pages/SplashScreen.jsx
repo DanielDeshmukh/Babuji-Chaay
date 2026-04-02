@@ -1,43 +1,133 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from "../assets/Logo.png";
 import supabase from "../lib/supabaseClient";
 import { syncBackendSession } from "../lib/apiClient";
 
+const FALLBACK_REDIRECT_MS = 5000;
+const AUTH_CALLBACK_STORAGE_KEY = "supabase-auth-callback";
+
+const getCallbackPayload = () => {
+  const storedPayload = sessionStorage.getItem(AUTH_CALLBACK_STORAGE_KEY);
+
+  if (storedPayload) {
+    try {
+      const parsedPayload = JSON.parse(storedPayload);
+      sessionStorage.removeItem(AUTH_CALLBACK_STORAGE_KEY);
+
+      const url = new URL(
+        `${window.location.origin}${parsedPayload.pathname}${parsedPayload.search}${parsedPayload.hash}`
+      );
+      const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+
+      return {
+        accessToken: hashParams.get("access_token"),
+        refreshToken: hashParams.get("refresh_token"),
+        authCode: url.searchParams.get("code"),
+        type: hashParams.get("type"),
+      };
+    } catch (error) {
+      console.error("Failed to parse stored auth callback:", error);
+      sessionStorage.removeItem(AUTH_CALLBACK_STORAGE_KEY);
+    }
+  }
+
+  const url = new URL(window.location.href);
+  const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+
+  return {
+    accessToken: hashParams.get("access_token"),
+    refreshToken: hashParams.get("refresh_token"),
+    authCode: url.searchParams.get("code"),
+    type: hashParams.get("type"),
+  };
+};
+
+const clearAuthHashImmediately = (payload) => {
+  if (!payload.accessToken && !payload.refreshToken && !payload.authCode) {
+    return;
+  }
+
+  const cleanUrl = `${window.location.pathname}${window.location.search}`;
+  window.history.replaceState(
+    { authCallbackHandled: true },
+    document.title,
+    cleanUrl
+  );
+};
+
 const SplashScreen = () => {
   const navigate = useNavigate();
-  const [status, setStatus] = useState("Completing sign-in...");
+  const [status, setStatus] = useState("Securing your session...");
   const [errorMessage, setErrorMessage] = useState("");
+  const hasResolvedRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
+    const callbackPayload = getCallbackPayload();
 
-    const clearAuthParamsFromUrl = () => {
-      const cleanUrl = `${window.location.pathname}${window.location.search}`;
-      window.history.replaceState({}, document.title, cleanUrl);
+    clearAuthHashImmediately(callbackPayload);
+
+    const resolveSession = async (session) => {
+      if (!session || hasResolvedRef.current) {
+        return;
+      }
+
+      hasResolvedRef.current = true;
+      setStatus("Connecting your dashboard...");
+
+      try {
+        await syncBackendSession();
+      } catch (error) {
+        console.error("Backend session sync failed:", error);
+      }
+
+      if (isMounted) {
+        navigate("/home", { replace: true });
+      }
     };
 
-    const finishSignIn = async () => {
-      try {
-        const callbackUrl = new URL(window.location.href);
-        const hashParams = new URLSearchParams(callbackUrl.hash.replace(/^#/, ""));
-        const accessToken = hashParams.get("access_token");
-        const refreshToken = hashParams.get("refresh_token");
-        const authCode = callbackUrl.searchParams.get("code");
+    const failToLogin = (message) => {
+      if (hasResolvedRef.current || !isMounted) {
+        return;
+      }
 
-        if (accessToken && refreshToken) {
-          setStatus("Restoring your session...");
+      hasResolvedRef.current = true;
+      setErrorMessage(message);
+      setStatus("Redirecting to login...");
+
+      window.setTimeout(() => {
+        navigate("/login", { replace: true });
+      }, 800);
+    };
+
+    const fallbackTimer = window.setTimeout(() => {
+      failToLogin("Login timed out. Please try again.");
+    }, FALLBACK_REDIRECT_MS);
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        await resolveSession(session);
+      }
+    );
+
+    const bootstrapSession = async () => {
+      try {
+        if (callbackPayload.accessToken && callbackPayload.refreshToken) {
+          setStatus("Restoring secure sign-in...");
           const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
+            access_token: callbackPayload.accessToken,
+            refresh_token: callbackPayload.refreshToken,
           });
 
           if (error) {
             throw error;
           }
-        } else if (authCode) {
+        } else if (callbackPayload.authCode) {
           setStatus("Validating secure login...");
-          const { error } = await supabase.auth.exchangeCodeForSession(authCode);
+          const { error } = await supabase.auth.exchangeCodeForSession(
+            callbackPayload.authCode
+          );
 
           if (error) {
             throw error;
@@ -46,42 +136,28 @@ const SplashScreen = () => {
 
         const {
           data: { session },
+          error,
         } = await supabase.auth.getSession();
 
-        if (!session) {
-          throw new Error("No active session was created from the sign-in callback.");
+        if (error) {
+          throw error;
         }
 
-        clearAuthParamsFromUrl();
-        setStatus("Connecting your dashboard...");
-        await syncBackendSession().catch(() => null);
-
-        if (isMounted) {
-          navigate("/home", { replace: true });
-        }
+        await resolveSession(session);
       } catch (error) {
         console.error("Splash screen auth handling failed:", error);
-
-        if (!isMounted) {
-          return;
-        }
-
-        clearAuthParamsFromUrl();
-        setErrorMessage(
+        failToLogin(
           error?.message || "Sign-in could not be completed. Please try again."
         );
-        setStatus("Redirecting to login...");
-
-        window.setTimeout(() => {
-          navigate("/login", { replace: true });
-        }, 1800);
       }
     };
 
-    finishSignIn();
+    bootstrapSession();
 
     return () => {
       isMounted = false;
+      window.clearTimeout(fallbackTimer);
+      authListener.subscription.unsubscribe();
     };
   }, [navigate]);
 
@@ -108,7 +184,7 @@ const SplashScreen = () => {
               <p className="text-sm text-rose-300">{errorMessage}</p>
             ) : (
               <p className="text-xs text-slate-400">
-                Finalizing your secure session and clearing the callback URL.
+                Processing the secure callback and clearing sensitive URL data.
               </p>
             )}
           </div>

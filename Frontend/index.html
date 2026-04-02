@@ -2,13 +2,36 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="./src/assets/icon.png" />
-    <link rel="apple-touch-icon" href="./src/assets/icon.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
       content="Babuji Chaay POS for billing, menu, inventory, reports, and daily operations."
     />
+    <script>
+      (function () {
+        var hash = window.location.hash || "";
+        var search = window.location.search || "";
+        var hasAuthHash = hash.indexOf("access_token=") !== -1 || hash.indexOf("refresh_token=") !== -1;
+        var hasAuthCode = search.indexOf("code=") !== -1;
+
+        if (!hasAuthHash && !hasAuthCode) return;
+
+        var payload = JSON.stringify({
+          hash: hash,
+          search: search,
+          pathname: window.location.pathname,
+          capturedAt: Date.now()
+        });
+
+        sessionStorage.setItem("supabase-auth-callback", payload);
+
+        var cleanUrl = window.location.pathname + window.location.search;
+        window.history.replaceState({ authCallbackCaptured: true }, document.title, cleanUrl);
+      })();
+    </script>
     <title>Dashboard | Babuji Chaay</title>
   </head>
   <body class="bg-background text-foreground">
