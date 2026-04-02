@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import supabase from "../lib/supabaseClient";
+import { getAuthRedirectUrl } from "../lib/authRedirect";
 import { FcGoogle } from "react-icons/fc";
 import Logo from "../assets/Logo.png";
 
@@ -31,7 +32,7 @@ const Register = () => {
         email: form.email,
         password: form.password,
         options: {
-          emailRedirectTo: "http://localhost:5173/splashscreen",
+          emailRedirectTo: getAuthRedirectUrl(),
         },
       });
 
@@ -52,7 +53,7 @@ const Register = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: "http://localhost:5173/splashscreen",
+          redirectTo: getAuthRedirectUrl(),
         },
       });
       if (error) throw error;

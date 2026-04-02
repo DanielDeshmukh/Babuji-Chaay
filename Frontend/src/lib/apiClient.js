@@ -44,6 +44,7 @@ export const apiRequest = async (
 
   const response = await fetch(buildUrl(path, params), {
     method,
+    credentials: "include",
     headers: finalHeaders,
     body: payload,
   });
