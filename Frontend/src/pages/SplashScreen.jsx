@@ -4,14 +4,20 @@ import Logo from "../assets/Logo.png";
 import supabase from "../lib/supabaseClient";
 import { syncBackendSession } from "../lib/apiClient";
 
-const FALLBACK_REDIRECT_MS = 5000;
+const FALLBACK_REDIRECT_MS = 2000;
+const LOGIN_REDIRECT_DELAY_MS = 800;
 const AUTH_CALLBACK_STORAGE_KEY = "supabase-auth-callback";
 const HASH_CLEAR_DEADLINE_MS = 100;
 
 const parseCallbackPayload = ({ hash = "", search = "", pathname = "/" } = {}) => {
   const normalizedHash = hash.startsWith("#") ? hash.slice(1) : hash;
   const hashParams = new URLSearchParams(normalizedHash);
-  const searchParams = new URLSearchParams(search.startsWith("?") ? search : `?${search}`);
+  const normalizedSearch = search
+    ? search.startsWith("?")
+      ? search.slice(1)
+      : search
+    : "";
+  const searchParams = new URLSearchParams(normalizedSearch);
 
   return {
     accessToken: hashParams.get("access_token"),
@@ -48,6 +54,10 @@ const getCallbackPayload = () => {
 const hasSensitiveCallbackData = (payload) =>
   Boolean(payload?.accessToken || payload?.refreshToken || payload?.authCode);
 
+const logSplashDebug = (step, details = {}) => {
+  console.info("[SplashScreen]", step, details);
+};
+
 const clearAuthHashImmediately = (payload, mountedAt) => {
   if (!hasSensitiveCallbackData(payload)) {
     return;
@@ -80,6 +90,15 @@ const SplashScreen = () => {
   const hasResolvedRef = useRef(false);
   const mountedAtRef = useRef(Date.now());
   const callbackPayloadRef = useRef(initialCallbackPayload);
+  const fallbackTimerRef = useRef(null);
+  const loginRedirectTimerRef = useRef(null);
+
+  logSplashDebug("mount:init", {
+    pathname: typeof window !== "undefined" ? window.location.pathname : "",
+    hasAccessToken: Boolean(initialCallbackPayload?.accessToken),
+    hasRefreshToken: Boolean(initialCallbackPayload?.refreshToken),
+    hasAuthCode: Boolean(initialCallbackPayload?.authCode),
+  });
 
   useLayoutEffect(() => {
     mountedAtRef.current = Date.now();
@@ -89,26 +108,45 @@ const SplashScreen = () => {
 
   useEffect(() => {
     let isMounted = true;
-    const callbackPayload = callbackPayloadRef.current ?? getCallbackPayload();
     let authEventReceived = false;
+    const callbackPayload = callbackPayloadRef.current ?? getCallbackPayload();
 
-    const resolveSession = async (session) => {
-      if (!session || hasResolvedRef.current) {
+    const clearTimers = () => {
+      if (fallbackTimerRef.current) {
+        window.clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
+
+      if (loginRedirectTimerRef.current) {
+        window.clearTimeout(loginRedirectTimerRef.current);
+        loginRedirectTimerRef.current = null;
+      }
+    };
+
+    const forceRedirectHome = (reason, session) => {
+      if (!session || hasResolvedRef.current || !isMounted) {
         return;
       }
 
       hasResolvedRef.current = true;
-      setStatus("Connecting your dashboard...");
+      clearTimers();
+      setStatus("Opening your dashboard...");
 
-      try {
-        await syncBackendSession();
-      } catch (error) {
+      logSplashDebug("redirect:home", {
+        reason,
+        userId: session?.user?.id ?? null,
+        hasAccessToken: Boolean(session?.access_token),
+        elapsedMs: Date.now() - mountedAtRef.current,
+      });
+
+      navigate("/home", { replace: true });
+
+      void syncBackendSession().catch((error) => {
         console.error("Backend session sync failed:", error);
-      }
-
-      if (isMounted) {
-        navigate("/home", { replace: true });
-      }
+        logSplashDebug("syncBackendSession:error", {
+          message: error?.message ?? "Unknown backend sync error",
+        });
+      });
     };
 
     const failToLogin = (message) => {
@@ -117,45 +155,129 @@ const SplashScreen = () => {
       }
 
       hasResolvedRef.current = true;
+      clearTimers();
       setErrorMessage(message);
       setStatus("Redirecting to login...");
 
-      window.setTimeout(() => {
+      logSplashDebug("redirect:login", {
+        message,
+        elapsedMs: Date.now() - mountedAtRef.current,
+      });
+
+      loginRedirectTimerRef.current = window.setTimeout(() => {
         navigate("/login", { replace: true });
-      }, 800);
+      }, LOGIN_REDIRECT_DELAY_MS);
     };
 
-    const fallbackTimer = window.setTimeout(() => {
+    const applyManualHashSession = async (reason) => {
+      if (
+        !callbackPayload.accessToken ||
+        !callbackPayload.refreshToken ||
+        hasResolvedRef.current
+      ) {
+        return null;
+      }
+
+      setStatus("Restoring secure sign-in...");
+      logSplashDebug("manualHashCapture:start", {
+        reason,
+        hasAccessToken: true,
+        hasRefreshToken: true,
+      });
+
+      const { data, error } = await supabase.auth.setSession({
+        access_token: callbackPayload.accessToken,
+        refresh_token: callbackPayload.refreshToken,
+      });
+
+      if (error) {
+        logSplashDebug("manualHashCapture:error", {
+          reason,
+          message: error.message,
+        });
+        throw error;
+      }
+
+      logSplashDebug("manualHashCapture:success", {
+        reason,
+        hasSession: Boolean(data.session),
+        userId: data.session?.user?.id ?? null,
+      });
+
+      return data.session ?? null;
+    };
+
+    const resolveSession = async (session, reason = "unknown") => {
+      if (!session || hasResolvedRef.current) {
+        return;
+      }
+
+      logSplashDebug("session:detected", {
+        reason,
+        userId: session?.user?.id ?? null,
+        hasAccessToken: Boolean(session?.access_token),
+      });
+
+      forceRedirectHome(reason, session);
+    };
+
+    fallbackTimerRef.current = window.setTimeout(() => {
       failToLogin("Login timed out. Please try again.");
     }, FALLBACK_REDIRECT_MS);
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         authEventReceived = true;
-        await resolveSession(session);
+        logSplashDebug("onAuthStateChange", {
+          event,
+          hasSession: Boolean(session),
+          userId: session?.user?.id ?? null,
+          hasAccessToken: Boolean(session?.access_token),
+        });
+
+        await resolveSession(session, `auth-listener:${event}`);
       }
     );
 
     const bootstrapSession = async () => {
       try {
-        if (callbackPayload.accessToken && callbackPayload.refreshToken) {
-          setStatus("Restoring secure sign-in...");
-          const { error } = await supabase.auth.setSession({
-            access_token: callbackPayload.accessToken,
-            refresh_token: callbackPayload.refreshToken,
-          });
+        logSplashDebug("bootstrap:start", {
+          hasSensitiveCallbackData: hasSensitiveCallbackData(callbackPayload),
+          hasAccessToken: Boolean(callbackPayload.accessToken),
+          hasRefreshToken: Boolean(callbackPayload.refreshToken),
+          hasAuthCode: Boolean(callbackPayload.authCode),
+          anonKeyPresent: Boolean(import.meta.env.VITE_SUPABASE_ANON_KEY),
+          supabaseUrlPresent: Boolean(import.meta.env.VITE_SUPABASE_URL),
+        });
 
-          if (error) {
-            throw error;
+        if (callbackPayload.accessToken && callbackPayload.refreshToken) {
+          const sessionFromHash = await applyManualHashSession("initial-hash");
+          if (sessionFromHash) {
+            forceRedirectHome("manual-hash-session", sessionFromHash);
+            return;
           }
         } else if (callbackPayload.authCode) {
           setStatus("Validating secure login...");
-          const { error } = await supabase.auth.exchangeCodeForSession(
+
+          const { data, error } = await supabase.auth.exchangeCodeForSession(
             callbackPayload.authCode
           );
 
           if (error) {
+            logSplashDebug("exchangeCodeForSession:error", {
+              message: error.message,
+            });
             throw error;
+          }
+
+          logSplashDebug("exchangeCodeForSession:success", {
+            hasSession: Boolean(data.session),
+            userId: data.session?.user?.id ?? null,
+          });
+
+          if (data.session) {
+            forceRedirectHome("auth-code-session", data.session);
+            return;
           }
         }
 
@@ -165,42 +287,46 @@ const SplashScreen = () => {
         } = await supabase.auth.getSession();
 
         if (error) {
+          logSplashDebug("getSession:error", {
+            message: error.message,
+          });
           throw error;
         }
 
-        await resolveSession(session);
+        logSplashDebug("getSession:result", {
+          hasSession: Boolean(session),
+          userId: session?.user?.id ?? null,
+          hasAccessToken: Boolean(session?.access_token),
+          anonKeyPresent: Boolean(import.meta.env.VITE_SUPABASE_ANON_KEY),
+          supabaseUrlPresent: Boolean(import.meta.env.VITE_SUPABASE_URL),
+        });
 
-        if (
-          !session &&
-          hasSensitiveCallbackData(callbackPayload) &&
-          !authEventReceived &&
-          callbackPayload.accessToken &&
-          callbackPayload.refreshToken
-        ) {
-          setStatus("Recovering secure sign-in...");
-
-          const { error: recoveryError } = await supabase.auth.setSession({
-            access_token: callbackPayload.accessToken,
-            refresh_token: callbackPayload.refreshToken,
-          });
-
-          if (recoveryError) {
-            throw recoveryError;
-          }
-
-          const {
-            data: { session: recoveredSession },
-            error: recoveredSessionError,
-          } = await supabase.auth.getSession();
-
-          if (recoveredSessionError) {
-            throw recoveredSessionError;
-          }
-
-          await resolveSession(recoveredSession);
+        if (session) {
+          forceRedirectHome("get-session", session);
+          return;
         }
+
+        if (callbackPayload.accessToken && callbackPayload.refreshToken) {
+          const recoveredSession = await applyManualHashSession(
+            authEventReceived ? "post-getSession-retry" : "listener-race-recovery"
+          );
+
+          if (recoveredSession) {
+            forceRedirectHome("manual-hash-recovery", recoveredSession);
+            return;
+          }
+        }
+
+        logSplashDebug("session:missing", {
+          authEventReceived,
+          message: "Supabase did not surface a valid session before timeout.",
+        });
       } catch (error) {
         console.error("Splash screen auth handling failed:", error);
+        logSplashDebug("bootstrap:error", {
+          name: error?.name ?? "UnknownError",
+          message: error?.message ?? "Unknown auth error",
+        });
         failToLogin(
           error?.message || "Sign-in could not be completed. Please try again."
         );
@@ -211,8 +337,12 @@ const SplashScreen = () => {
 
     return () => {
       isMounted = false;
-      window.clearTimeout(fallbackTimer);
+      clearTimers();
       authListener.subscription.unsubscribe();
+      logSplashDebug("cleanup", {
+        resolved: hasResolvedRef.current,
+        authEventReceived,
+      });
     };
   }, [navigate]);
 
