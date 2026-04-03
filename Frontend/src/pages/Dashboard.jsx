@@ -1,7 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { TrendingUp, Users, DollarSign, ShoppingCart, Receipt, FileText } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {
+  TrendingUp,
+  Users,
+  DollarSign,
+  ShoppingCart,
+  Receipt,
+  FileText,
+} from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import {
@@ -25,14 +32,10 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import { Button } from "../components/ui/button";
 
 const VISIBLE_POINTS = 7;
 
-/**
- * SECURE ACTION HELPER
- * Navigates directly to the backend by appending the token to the URL.
- * This bypasses the "Blob" port 5173 / 3000 conflict.
- */
 const openSecureLink = async (pathWithParams) => {
   try {
     await openAuthenticatedUrl(pathWithParams);
@@ -42,35 +45,29 @@ const openSecureLink = async (pathWithParams) => {
   }
 };
 
-const formatCurrency = (v) =>
-  typeof v === "number" ? `₹${v.toLocaleString("en-IN")}` : v;
+const formatCurrency = (value) =>
+  typeof value === "number" ? `Rs ${value.toLocaleString("en-IN")}` : value;
 
 function Dashboard() {
   const [data, setData] = useState([]);
   const [kpis, setKpis] = useState([]);
   const [hasData, setHasData] = useState(true);
-
   const [showReportOptions, setShowReportOptions] = useState(false);
   const [showTransactionOptions, setShowTransactionOptions] = useState(false);
-
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [specificDate, setSpecificDate] = useState(null);
   const [selectedDailyBillNo, setSelectedDailyBillNo] = useState("");
 
   const datePickerClassName =
-    "px-3 py-2 rounded-md bg-card text-card-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary w-full text-sm";
+    "h-12 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-  // Old version:
-  // const formatLocalDate = (date) => date.toLocaleDateString("en-CA");
-
-  // New fixed version:
   const formatLocalDate = (date) => {
     if (!date) return "";
-    const d = new Date(date);
-    return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-CA");
+    const parsed = new Date(date);
+    return isNaN(parsed.getTime()) ? "" : parsed.toLocaleDateString("en-CA");
   };
-  // 1) Session Sync to Backend on Mount
+
   useEffect(() => {
     const syncSession = async () => {
       await syncBackendSession().catch((err) =>
@@ -80,7 +77,6 @@ function Dashboard() {
     syncSession();
   }, []);
 
-  // 2) Fetch Chart Data
   useEffect(() => {
     const fetchSummary = async () => {
       try {
@@ -92,12 +88,17 @@ function Dashboard() {
         if (error) throw error;
         if (!rows?.length) return setHasData(false);
 
-        setData(rows.map((r) => ({
-          date: new Date(r.sales_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
-          sales: r.total_sales,
-          loss: r.total_loss,
-          dump: r.total_dump,
-        })));
+        setData(
+          rows.map((row) => ({
+            date: new Date(row.sales_date).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+            }),
+            sales: row.total_sales,
+            loss: row.total_loss,
+            dump: row.total_dump,
+          }))
+        );
         setHasData(true);
       } catch (err) {
         console.error("Summary error:", err);
@@ -107,7 +108,6 @@ function Dashboard() {
     fetchSummary();
   }, []);
 
-// 3) KPIs Fetch - FIXED FOR TIMEZONES & DYNAMICS
   useEffect(() => {
     const fetchKPIs = async () => {
       try {
@@ -115,289 +115,395 @@ function Dashboard() {
         const start = startDate ? formatLocalDate(startDate) : todayStr;
         const end = endDate ? formatLocalDate(endDate) : todayStr;
 
-        // 1. Fetch Summary Data (Income & Expenses)
         const { data: summaryData } = await supabase
           .from("daily_sales_summary")
           .select("total_sales, total_loss, total_dump")
           .gte("sales_date", start)
           .lte("sales_date", end);
 
-        const totalIncome = summaryData?.reduce((sum, r) => sum + Number(r.total_sales || 0), 0) || 0;
-        // Check if these columns actually have data in your DB!
-        const totalExpenses = summaryData?.reduce((sum, r) => sum + Number(r.total_loss || 0) + Number(r.total_dump || 0), 0) || 0;
+        const totalIncome =
+          summaryData?.reduce(
+            (sum, row) => sum + Number(row.total_sales || 0),
+            0
+          ) || 0;
+        const totalExpenses =
+          summaryData?.reduce(
+            (sum, row) =>
+              sum + Number(row.total_loss || 0) + Number(row.total_dump || 0),
+            0
+          ) || 0;
 
-        // 2. Fetch Orders - TIMEZONE ADJUSTED (+05:30)
-        // We use the same ISO offset logic we used for the refund search
         const istStart = `${start}T00:00:00+05:30`;
         const istEnd = `${end}T23:59:59+05:30`;
 
         const { count: totalOrders, error: countErr } = await supabase
           .from("transactions")
-          .select("*", { count: 'exact', head: true })
+          .select("*", { count: "exact", head: true })
           .gte("created_at", istStart)
           .lte("created_at", istEnd);
 
         if (countErr) console.error("Order Count Error:", countErr);
 
         setKpis([
-          { title: "Income", value: totalIncome, delta: "Current Period", icon: DollarSign, color: "var(--accent)" },
-          { title: "Orders", value: totalOrders || 0, delta: "Transactions", icon: ShoppingCart, color: "var(--secondary)" },
-          { title: "Expenses", value: totalExpenses, delta: "Loss/Dump", icon: Users, color: "var(--secondary-foreground)" },
-          { title: "Growth", value: "Live", delta: "Active", icon: TrendingUp, color: "var(--primary)" },
+          {
+            title: "Income",
+            value: totalIncome,
+            delta: "Current Period",
+            icon: DollarSign,
+            tone: "text-primary",
+          },
+          {
+            title: "Orders",
+            value: totalOrders || 0,
+            delta: "Transactions",
+            icon: ShoppingCart,
+            tone: "text-foreground",
+          },
+          {
+            title: "Expenses",
+            value: totalExpenses,
+            delta: "Loss and Dump",
+            icon: Users,
+            tone: "text-muted-foreground",
+          },
+          {
+            title: "Growth",
+            value: "Live",
+            delta: "Active",
+            icon: TrendingUp,
+            tone: "text-primary",
+          },
         ]);
-      } catch (err) { 
-        console.error("KPI Fetch Critical Failure:", err); 
+      } catch (err) {
+        console.error("KPI Fetch Critical Failure:", err);
       }
     };
     fetchKPIs();
   }, [startDate, endDate]);
 
-const getDateParams = (type) => {
-  let startStr, endStr;
+  const getDateParams = (type) => {
+    let startStr;
+    let endStr;
 
-  if (type === "range" && startDate && endDate) {
-    if (new Date(startDate) > new Date(endDate)) {
-      alert("Start date cannot be later than end date.");
-      return null;
+    if (type === "range" && startDate && endDate) {
+      if (new Date(startDate) > new Date(endDate)) {
+        alert("Start date cannot be later than end date.");
+        return null;
+      }
+      startStr = `${formatLocalDate(startDate)}T00:00:00+05:30`;
+      endStr = `${formatLocalDate(endDate)}T23:59:59+05:30`;
+    } else if (type === "specific" && specificDate) {
+      const dateValue = formatLocalDate(specificDate);
+      startStr = `${dateValue}T00:00:00+05:30`;
+      endStr = `${dateValue}T23:59:59+05:30`;
+    } else {
+      const today = formatLocalDate(new Date());
+      startStr = `${today}T00:00:00+05:30`;
+      endStr = `${today}T23:59:59+05:30`;
     }
-    // Convert to IST window strings
-    startStr = `${formatLocalDate(startDate)}T00:00:00+05:30`;
-    endStr = `${formatLocalDate(endDate)}T23:59:59+05:30`;
-  } else if (type === "specific" && specificDate) {
-    const d = formatLocalDate(specificDate);
-    startStr = `${d}T00:00:00+05:30`;
-    endStr = `${d}T23:59:59+05:30`;
-  } else {
-    // Default/Daily fallback (Today IST)
-    const today = formatLocalDate(new Date());
-    startStr = `${today}T00:00:00+05:30`;
-    endStr = `${today}T23:59:59+05:30`;
-  }
 
-  // Critical: Use encodeURIComponent so the '+' and ':' don't break the URL
-  return `?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`;
-};
+    return `?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(
+      endStr
+    )}`;
+  };
 
-  // 4) Report Logic
   const handleDownloadReport = (type) => {
     const params = getDateParams(type);
-    if (!params) return; // Exit if validation failed
+    if (!params) return;
 
-    const path = `/api/reports/generate${params}`;
-    openSecureLink(path);
+    openSecureLink(`/api/reports/generate${params}`);
     setShowReportOptions(false);
   };
 
-  // 5) Transaction Logic
- // 5) Transaction Logic - REFACTORED
   const handleViewTransactions = async (type) => {
     let path = `/api/transactions`;
 
     if (type === "invoice") {
-      // Safety check: Don't proceed if no bill number is entered
       if (!selectedDailyBillNo) {
         alert("Please enter a Daily Bill Number first.");
         return;
       }
-      
-      // Explicitly append the format=pdf so the backend knows to trigger a download/PDF view
+
       path = `/api/transactions/daily/${selectedDailyBillNo}/invoice?format=pdf`;
     } else {
       const params = getDateParams(type);
-      if (!params) return; // Exit if validation failed (from getDateParams)
+      if (!params) return;
       path += params;
     }
 
-    // openSecureLink handles the Supabase session retrieval and 
-    // appends the &token=... query param to bypass the "Unauthorized" error
     await openSecureLink(path);
-    
     setShowTransactionOptions(false);
   };
-
-
 
   const visibleData = data.length ? data.slice(-VISIBLE_POINTS) : [];
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+    <div className="min-h-screen bg-background text-foreground">
       <Header />
-      <main className="flex-1 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <div className="px-3 py-1 rounded-md text-sm bg-muted text-muted-foreground">Overview</div>
-        </div>
+      <main className="px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto flex max-w-screen-xl flex-col gap-4 lg:gap-6">
+          <section className="rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-primary">Dashboard</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Overview of sales, reports, and transaction activity
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
+                Overview
+              </div>
+            </div>
+          </section>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-          {kpis.map((kpi) => {
-            const Icon = kpi.icon;
-            return (
-              <Card key={kpi.title} className="rounded-xl border border-border">
-                <CardContent className="p-5 flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{kpi.title}</p>
-                    <h3 className="text-2xl font-bold mt-1">{formatCurrency(kpi.value)}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">{kpi.delta}</p>
-                  </div>
-                  <div className="p-2 rounded-lg bg-muted">
-                    <Icon className="h-5 w-5" style={{ color: kpi.color }} />
-                  </div>
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {kpis.map((kpi) => {
+              const Icon = kpi.icon;
+              return (
+                <Card key={kpi.title} className="rounded-3xl border border-border">
+                  <CardContent className="flex items-start justify-between p-5">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {kpi.title}
+                      </p>
+                      <h3 className="mt-1 text-2xl font-bold">
+                        {formatCurrency(kpi.value)}
+                      </h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {kpi.delta}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background p-3">
+                      <Icon className={`h-5 w-5 ${kpi.tone}`} />
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </section>
+
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+            <Card className="w-full rounded-3xl border border-border lg:flex-1">
+              <CardHeader>
+                <CardTitle>Sales Trend</CardTitle>
+                <CardDescription>
+                  {hasData ? "Recent performance" : "No summary data available"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={visibleData}>
+                      <defs>
+                        <linearGradient
+                          id="chartGradient"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="5%"
+                            stopColor="var(--primary)"
+                            stopOpacity={0.3}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="var(--primary)"
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+
+                      <CartesianGrid
+                        vertical={false}
+                        stroke="var(--border)"
+                        strokeDasharray="3 3"
+                        opacity={0.5}
+                      />
+
+                      <XAxis
+                        dataKey="date"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                        dy={10}
+                      />
+
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "12px",
+                        }}
+                        itemStyle={{
+                          color: "var(--primary)",
+                          fontWeight: "bold",
+                        }}
+                      />
+
+                      <Area
+                        type="monotone"
+                        dataKey="sales"
+                        stroke="var(--primary)"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#chartGradient)"
+                        animationDuration={1500}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex w-full flex-col gap-4 lg:basis-[34%]">
+              <Card className="rounded-3xl border border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <FileText className="h-5 w-5 text-primary" />
+                    Reports
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {!showReportOptions ? (
+                    <Button onClick={() => setShowReportOptions(true)}>
+                      Export Reports
+                    </Button>
+                  ) : (
+                    <div className="space-y-3">
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleDownloadReport("daily")}
+                      >
+                        Daily Report
+                      </Button>
+                      <div className="space-y-2 border-t border-border pt-2">
+                        <DatePicker
+                          selected={specificDate}
+                          onChange={setSpecificDate}
+                          placeholderText="Specific Date"
+                          customInput={<Input className={datePickerClassName} />}
+                        />
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <DatePicker
+                            selected={startDate}
+                            onChange={setStartDate}
+                            selectsStart
+                            startDate={startDate}
+                            endDate={endDate}
+                            placeholderText="Start"
+                            customInput={<Input className={datePickerClassName} />}
+                          />
+                          <DatePicker
+                            selected={endDate}
+                            onChange={setEndDate}
+                            selectsEnd
+                            startDate={startDate}
+                            endDate={endDate}
+                            minDate={startDate}
+                            placeholderText="End"
+                            customInput={<Input className={datePickerClassName} />}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <Button
+                            onClick={() => handleDownloadReport("specific")}
+                            disabled={!specificDate}
+                          >
+                            Day
+                          </Button>
+                          <Button
+                            onClick={() => handleDownloadReport("range")}
+                            variant="secondary"
+                            disabled={!startDate || !endDate}
+                          >
+                            Range
+                          </Button>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        onClick={() => setShowReportOptions(false)}
+                      >
+                        Back
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Chart */}
-          <Card className="lg:col-span-2 rounded-xl border border-border">
-            <CardHeader>
-              <CardTitle>Sales Trend</CardTitle>
-              <CardDescription>Recent performance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div style={{ height: 320 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={visibleData}>
-                    <defs>
-                      <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-
-                    <CartesianGrid
-                      vertical={false}
-                      stroke="var(--border)"
-                      strokeDasharray="3 3"
-                      opacity={0.5}
-                    />
-
-                    <XAxis
-                      dataKey="date"
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
-                      dy={10}
-                    />
-
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--card)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "12px",
-                        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)"
-                      }}
-                      itemStyle={{ color: "var(--primary)", fontWeight: "bold" }}
-                    />
-
-                    <Area
-                      type="monotone"
-                      dataKey="sales"
-                      stroke="var(--primary)"     /* 🟢 Green in Light / 🟡 Gold in Dark */
-                      strokeWidth={3}
-                      fillOpacity={1}
-                      fill="url(#chartGradient)"  /* Uses the dynamic gradient defined above */
-                      animationDuration={1500}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Action Panels */}
-          <div className="space-y-6">
-            <Card className="rounded-xl border border-border">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2"><FileText className="h-5 w-5 text-primary" /> Reports</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {!showReportOptions ? (
-                  <button onClick={() => setShowReportOptions(true)} className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-bold">Export Reports</button>
-                ) : (
-                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                    <button onClick={() => handleDownloadReport("daily")} className="w-full py-2 bg-muted rounded-lg text-sm">Daily Report</button>
-                    <div className="space-y-2 pt-2 border-t border-border">
-                      <DatePicker selected={specificDate} onChange={setSpecificDate} placeholderText="Specific Date" customInput={<Input className={datePickerClassName} />} />
-                      <div className="grid grid-cols-2 gap-2">
-                        <DatePicker selected={startDate} onChange={setStartDate} selectsStart startDate={startDate} endDate={endDate} placeholderText="Start" customInput={<Input className={datePickerClassName} />} />
-                        <DatePicker selected={endDate} onChange={setEndDate} selectsEnd startDate={startDate} endDate={endDate} minDate={startDate} placeholderText="End" customInput={<Input className={datePickerClassName} />} />
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleDownloadReport("specific")} disabled={!specificDate} className="flex-1 py-2 bg-primary text-white rounded-lg text-xs disabled:opacity-50">Day</button>
-                        <button onClick={() => handleDownloadReport("range")} disabled={!startDate || !endDate} className="flex-1 py-2 bg-secondary text-white rounded-lg text-xs disabled:opacity-50">Range</button>
-                      </div>
-                    </div>
-                    <button onClick={() => setShowReportOptions(false)} className="w-full py-1 text-xs underline">Back</button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-xl border border-border">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-primary" /> Transactions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {!showTransactionOptions ? (
-                  <button
-                    onClick={() => setShowTransactionOptions(true)}
-                    className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-bold"
-                  >
-                    View Transactions
-                  </button>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Quick Actions */}
-                    <button
-                      onClick={() => handleViewTransactions("daily")}
-                      className="w-full py-2 bg-muted rounded-lg text-sm font-medium hover:bg-muted/80"
-                    >
-                      Today's Ledger
-                    </button>
-
-                    {/* Date Range Selection */}
-                    <div className="space-y-2 pt-2 border-t">
-                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
-                        Select Range / Date
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          type="date"
-                          value={startDate || ""}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          className={datePickerClassName}
-                        />
-                        <input
-                          type="date"
-                          value={endDate || ""}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          className={datePickerClassName}
-                        />
-                      </div>
-                      <button
-                        onClick={() => handleViewTransactions("range")}
-                        disabled={!startDate || !endDate}
-                        className="w-full py-2 bg-secondary text-white rounded-lg text-xs font-bold disabled:opacity-50"
+              <Card className="rounded-3xl border border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Receipt className="h-5 w-5 text-primary" />
+                    Transactions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {!showTransactionOptions ? (
+                    <Button onClick={() => setShowTransactionOptions(true)}>
+                      View Transactions
+                    </Button>
+                  ) : (
+                    <div className="space-y-3">
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleViewTransactions("daily")}
                       >
-                        View Range Ledger
-                      </button>
+                        Today&apos;s Ledger
+                      </Button>
+                      <div className="space-y-2 border-t border-border pt-2">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Select Range / Date
+                        </label>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <Input
+                            type="date"
+                            value={startDate || ""}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className={datePickerClassName}
+                          />
+                          <Input
+                            type="date"
+                            value={endDate || ""}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className={datePickerClassName}
+                          />
+                        </div>
+                        <Input
+                          type="text"
+                          value={selectedDailyBillNo}
+                          onChange={(e) => setSelectedDailyBillNo(e.target.value)}
+                          placeholder="Daily Bill Number for invoice"
+                        />
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <Button
+                            onClick={() => handleViewTransactions("range")}
+                            disabled={!startDate || !endDate}
+                          >
+                            View Range Ledger
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleViewTransactions("invoice")}
+                            disabled={!selectedDailyBillNo}
+                          >
+                            Invoice PDF
+                          </Button>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        onClick={() => setShowTransactionOptions(false)}
+                      >
+                        Back
+                      </Button>
                     </div>
-
-                    <button
-                      onClick={() => setShowTransactionOptions(false)}
-                      className="w-full py-1 text-xs underline text-muted-foreground hover:text-primary"
-                    >
-                      Back
-                    </button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </main>

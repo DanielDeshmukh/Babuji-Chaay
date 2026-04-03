@@ -208,7 +208,7 @@ const Inventory = () => {
                 />
               </div>
 
-              <div className="flex gap-2 overflow-x-auto pb-2 lg:max-w-[55%]">
+              <div className="flex gap-2 overflow-x-auto pb-2 lg:flex-1 lg:justify-end">
                 {categories.map((category) => (
                   <button
                     key={category}
