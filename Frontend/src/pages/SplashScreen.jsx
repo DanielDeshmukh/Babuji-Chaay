@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from "../assets/Logo.png";
 import supabase from "../lib/supabaseClient";
@@ -6,6 +6,23 @@ import { syncBackendSession } from "../lib/apiClient";
 
 const FALLBACK_REDIRECT_MS = 5000;
 const AUTH_CALLBACK_STORAGE_KEY = "supabase-auth-callback";
+const HASH_CLEAR_DEADLINE_MS = 100;
+
+const parseCallbackPayload = ({ hash = "", search = "", pathname = "/" } = {}) => {
+  const normalizedHash = hash.startsWith("#") ? hash.slice(1) : hash;
+  const hashParams = new URLSearchParams(normalizedHash);
+  const searchParams = new URLSearchParams(search.startsWith("?") ? search : `?${search}`);
+
+  return {
+    accessToken: hashParams.get("access_token"),
+    refreshToken: hashParams.get("refresh_token"),
+    authCode: searchParams.get("code"),
+    type: hashParams.get("type"),
+    pathname,
+    rawHash: hash,
+    rawSearch: search,
+  };
+};
 
 const getCallbackPayload = () => {
   const storedPayload = sessionStorage.getItem(AUTH_CALLBACK_STORAGE_KEY);
@@ -14,41 +31,34 @@ const getCallbackPayload = () => {
     try {
       const parsedPayload = JSON.parse(storedPayload);
       sessionStorage.removeItem(AUTH_CALLBACK_STORAGE_KEY);
-
-      const url = new URL(
-        `${window.location.origin}${parsedPayload.pathname}${parsedPayload.search}${parsedPayload.hash}`
-      );
-      const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
-
-      return {
-        accessToken: hashParams.get("access_token"),
-        refreshToken: hashParams.get("refresh_token"),
-        authCode: url.searchParams.get("code"),
-        type: hashParams.get("type"),
-      };
+      return parseCallbackPayload(parsedPayload);
     } catch (error) {
       console.error("Failed to parse stored auth callback:", error);
       sessionStorage.removeItem(AUTH_CALLBACK_STORAGE_KEY);
     }
   }
 
-  const url = new URL(window.location.href);
-  const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
-
-  return {
-    accessToken: hashParams.get("access_token"),
-    refreshToken: hashParams.get("refresh_token"),
-    authCode: url.searchParams.get("code"),
-    type: hashParams.get("type"),
-  };
+  return parseCallbackPayload({
+    hash: window.location.hash,
+    search: window.location.search,
+    pathname: window.location.pathname,
+  });
 };
 
-const clearAuthHashImmediately = (payload) => {
-  if (!payload.accessToken && !payload.refreshToken && !payload.authCode) {
+const hasSensitiveCallbackData = (payload) =>
+  Boolean(payload?.accessToken || payload?.refreshToken || payload?.authCode);
+
+const clearAuthHashImmediately = (payload, mountedAt) => {
+  if (!hasSensitiveCallbackData(payload)) {
     return;
   }
 
   const cleanUrl = `${window.location.pathname}${window.location.search}`;
+
+  if (Date.now() - mountedAt > HASH_CLEAR_DEADLINE_MS) {
+    console.warn("Auth callback hash was cleared after the preferred 100ms window.");
+  }
+
   window.history.replaceState(
     { authCallbackHandled: true },
     document.title,
@@ -61,12 +71,19 @@ const SplashScreen = () => {
   const [status, setStatus] = useState("Securing your session...");
   const [errorMessage, setErrorMessage] = useState("");
   const hasResolvedRef = useRef(false);
+  const mountedAtRef = useRef(Date.now());
+  const callbackPayloadRef = useRef(null);
+
+  useLayoutEffect(() => {
+    mountedAtRef.current = Date.now();
+    callbackPayloadRef.current = getCallbackPayload();
+    clearAuthHashImmediately(callbackPayloadRef.current, mountedAtRef.current);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
-    const callbackPayload = getCallbackPayload();
-
-    clearAuthHashImmediately(callbackPayload);
+    const callbackPayload = callbackPayloadRef.current ?? getCallbackPayload();
+    let authEventReceived = false;
 
     const resolveSession = async (session) => {
       if (!session || hasResolvedRef.current) {
@@ -107,6 +124,7 @@ const SplashScreen = () => {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        authEventReceived = true;
         await resolveSession(session);
       }
     );
@@ -144,6 +162,36 @@ const SplashScreen = () => {
         }
 
         await resolveSession(session);
+
+        if (
+          !session &&
+          hasSensitiveCallbackData(callbackPayload) &&
+          !authEventReceived &&
+          callbackPayload.accessToken &&
+          callbackPayload.refreshToken
+        ) {
+          setStatus("Recovering secure sign-in...");
+
+          const { error: recoveryError } = await supabase.auth.setSession({
+            access_token: callbackPayload.accessToken,
+            refresh_token: callbackPayload.refreshToken,
+          });
+
+          if (recoveryError) {
+            throw recoveryError;
+          }
+
+          const {
+            data: { session: recoveredSession },
+            error: recoveredSessionError,
+          } = await supabase.auth.getSession();
+
+          if (recoveredSessionError) {
+            throw recoveredSessionError;
+          }
+
+          await resolveSession(recoveredSession);
+        }
       } catch (error) {
         console.error("Splash screen auth handling failed:", error);
         failToLogin(
