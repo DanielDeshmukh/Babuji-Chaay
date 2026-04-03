@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabaseClient";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 const InventoryManager = () => {
   const [userId, setUserId] = useState(null);
@@ -18,22 +20,25 @@ const InventoryManager = () => {
     price: 0,
   });
 
-  // AUTHENTICATION
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (user) {
         setUserId(user.id);
       } else {
-        setMessage("❌ Authentication required to manage inventory.");
+        setMessage("Authentication required to manage inventory.");
       }
     };
+
     fetchUser();
   }, []);
 
-  // FETCH PRODUCTS
   const fetchProducts = useCallback(async () => {
     if (!userId) return;
+
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -44,28 +49,30 @@ const InventoryManager = () => {
 
       if (error) throw error;
       setProducts(data || []);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
+      setMessage("Failed to load inventory.");
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
   useEffect(() => {
-    if (userId) fetchProducts();
+    if (userId) {
+      fetchProducts();
+    }
   }, [userId, fetchProducts]);
 
-  // FORM HANDLING
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const handleChange = (event) => {
+    const { name, value } = event.target;
     setForm((prev) => ({
       ...prev,
       [name]: name === "quantity" || name === "price" ? Number(value) : value,
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     if (!userId) return;
 
     try {
@@ -85,10 +92,11 @@ const InventoryManager = () => {
 
       setForm({ id: null, name: "", category: "", quantity: 0, price: 0 });
       fetchProducts();
-      setMessage("✅ Inventory updated successfully.");
-      setTimeout(() => setMessage(""), 3000);
-    } catch (err) {
-      setMessage("❌ Failed to save product.");
+      setMessage("Inventory updated successfully.");
+      window.setTimeout(() => setMessage(""), 3000);
+    } catch (error) {
+      console.error(error);
+      setMessage("Failed to save product.");
     }
   };
 
@@ -103,179 +111,232 @@ const InventoryManager = () => {
     if (!error) fetchProducts();
   };
 
-  // CATEGORY LOGIC
-  const categories = ["All", ...new Set(products.map((p) => p.category || "Uncategorized"))];
+  const categories = useMemo(
+    () => ["All", ...new Set(products.map((product) => product.category || "Uncategorized"))],
+    [products]
+  );
 
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = activeCategory === "All" || (p.category || "Uncategorized") === activeCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const normalizedSearch = search.trim().toLowerCase();
+  const shouldShowResults = normalizedSearch.length > 0;
+
+  const filteredProducts = useMemo(() => {
+    if (!shouldShowResults) return [];
+
+    return products.filter((product) => {
+      const category = product.category || "Uncategorized";
+      const matchesSearch =
+        product.name.toLowerCase().includes(normalizedSearch) ||
+        category.toLowerCase().includes(normalizedSearch);
+      const matchesCategory =
+        activeCategory === "All" || category === activeCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [activeCategory, normalizedSearch, products, shouldShowResults]);
 
   return (
-    <div className="max-w-5xl mx-auto p-6 bg-background min-h-screen text-foreground">
-      {/* HEADER */}
-      <header className="mb-8 border-b-4 border-primary pb-4 flex justify-between items-end">
-        <div>
-          <h1 className="text-4xl font-black tracking-tighter">INVENTORY</h1>
-          <p className="text-muted-foreground uppercase text-xs font-bold tracking-widest">
-            Stock & Catalog Management
+    <div className="min-h-0 text-amber-50">
+      <header className="mb-6 flex flex-col gap-3 border-b border-emerald-900/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black tracking-tight text-amber-200 sm:text-3xl">
+            Inventory
+          </h1>
+          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-100/60">
+            Stock and Catalog Management
           </p>
         </div>
-        <div className="text-right hidden md:block">
-          <span className="text-3xl font-black text-primary">
+
+        <div className="rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 sm:text-right">
+          <span className="text-2xl font-black text-amber-300 sm:text-3xl">
             {products.length}
           </span>
-          <p className="text-[10px] font-bold uppercase">Total SKUs</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-100/55">
+            Total SKUs
+          </p>
         </div>
       </header>
 
-      {/* MESSAGE */}
       {message && (
-        <div className="mb-6 p-4 font-bold text-center border-2 border-border bg-secondary text-secondary-foreground rounded">
+        <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center text-sm font-semibold text-amber-100">
           {message}
         </div>
       )}
 
       {userId && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* FORM */}
-          <div className="lg:col-span-1">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+          <div className="min-w-0">
             <form
               onSubmit={handleSubmit}
-              className="sticky top-6 bg-card border-2 border-border p-6 rounded-xl shadow-sm"
+              className="flex h-full flex-col gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.28)] sm:p-5 xl:sticky xl:top-6"
             >
-              <h3 className="text-lg font-black uppercase mb-4 pb-2 border-b border-border">
+              <h3 className="border-b border-emerald-900/70 pb-3 text-sm font-black uppercase tracking-[0.24em] text-amber-200">
                 {form.id ? "Update Item" : "New Product"}
               </h3>
 
               <div className="space-y-4">
-                <input
+                <Input
                   name="name"
                   value={form.name}
                   onChange={handleChange}
                   placeholder="Product Name"
-                  className="w-full p-3 border-2 border-muted bg-background rounded focus:border-primary outline-none"
                   required
                 />
 
-                <input
+                <Input
                   name="category"
                   value={form.category}
                   onChange={handleChange}
                   placeholder="Category"
-                  className="w-full p-3 border-2 border-muted bg-background rounded outline-none"
                 />
 
-                <div className="grid grid-cols-2 gap-4">
-                  <input
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Input
                     type="number"
                     name="quantity"
                     value={form.quantity}
                     onChange={handleChange}
                     placeholder="Qty"
-                    className="w-full p-3 border-2 border-muted bg-background rounded outline-none font-bold"
+                    className="font-semibold"
                     required
                   />
-                  <input
+                  <Input
                     type="number"
                     step="0.01"
                     name="price"
                     value={form.price}
                     onChange={handleChange}
-                    placeholder="₹ Price"
-                    className="w-full p-3 border-2 border-muted bg-background rounded outline-none font-bold text-primary"
+                    placeholder="Rs Price"
+                    className="font-semibold text-amber-200"
                     required
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-4 bg-primary text-primary-foreground font-black uppercase tracking-widest rounded hover:opacity-90 transition-all"
-                >
+                <Button type="submit" className="mt-2 uppercase tracking-[0.24em]">
                   {form.id ? "Save Changes" : "Add to Stock"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
 
-          {/* LIST */}
-          <div className="lg:col-span-2 space-y-6">
-            <input
-              type="text"
-              placeholder="SEARCH INVENTORY..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full p-4 border-2 border-border rounded-xl bg-card font-bold outline-none focus:border-primary"
-            />
+          <div className="min-w-0 space-y-4">
+            <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.28)] sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">
+                    Find Inventory
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-100/60">
+                    Search to reveal matching products. The list stays hidden until you type.
+                  </p>
+                </div>
+                <div className="rounded-full border border-white/10 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-amber-100/75">
+                  {shouldShowResults ? `${filteredProducts.length} matches` : "Search to show"}
+                </div>
+              </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`px-5 py-2 rounded-full text-[10px] font-black uppercase border-2 transition-all ${
-                    activeCategory === cat
-                      ? "bg-primary border-primary text-primary-foreground"
-                      : "bg-background border-border text-muted-foreground hover:border-primary"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+              <div className="mt-4">
+                <Input
+                  type="text"
+                  placeholder="Search Inventory..."
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
 
-            <div className="bg-card border-2 border-border rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-muted border-b border-border">
-                  <tr>
-                    <th className="p-4 text-[10px] font-black uppercase">Product</th>
-                    <th className="p-4 text-[10px] font-black uppercase">Category</th>
-                    <th className="p-4 text-[10px] font-black uppercase text-center">Stock</th>
-                    <th className="p-4 text-[10px] font-black uppercase text-right">Price</th>
-                    <th className="p-4 text-[10px] font-black uppercase text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filteredProducts.map((p) => (
-                    <tr key={p.id} className="hover:bg-muted/30">
-                      <td className="p-4 font-black uppercase">{p.name}</td>
-                      <td className="p-4 text-xs text-muted-foreground uppercase">
-                        {p.category || "Uncategorized"}
-                      </td>
-                      <td className="p-4 text-center">
-                        <span
-                          className={`px-3 py-1 rounded text-xs font-black ${
-                            p.quantity <= 5
-                              ? "bg-secondary text-secondary-foreground"
-                              : "bg-muted text-foreground"
-                          }`}
-                        >
-                          {p.quantity}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right font-black text-primary">
-                        ₹{p.price.toFixed(2)}
-                      </td>
-                      <td className="p-4 text-right">
-                        <button
-                          onClick={() => handleEdit(p)}
-                          className="text-primary text-[10px] font-black uppercase mr-2"
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setActiveCategory(category)}
+                    className={`whitespace-nowrap rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] transition-all ${
+                      activeCategory === category
+                        ? "border-amber-400 bg-amber-400 text-slate-950"
+                        : "border-white/10 bg-slate-900 text-emerald-100/70 hover:border-amber-400/50"
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.28)] sm:p-4">
+              {loading ? (
+                <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-white/10 bg-slate-900/70 p-6 text-center text-sm font-semibold text-emerald-100/65">
+                  Loading inventory...
+                </div>
+              ) : !shouldShowResults ? (
+                <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-emerald-900/70 bg-slate-900/70 p-6 text-center">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-100">
+                      Start typing in the search box to view inventory results.
+                    </p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.22em] text-emerald-100/45">
+                      Search-to-show keeps long catalogs manageable on mobile.
+                    </p>
+                  </div>
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-white/10 bg-slate-900/70 p-6 text-center text-sm font-semibold text-emerald-100/65">
+                  No products match your search.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {filteredProducts.map((product) => (
+                    <article
+                      key={product.id}
+                      className="rounded-2xl border border-white/10 bg-slate-900/90 p-4"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-base font-black uppercase tracking-wide text-amber-100">
+                            {product.name}
+                          </h3>
+                          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-emerald-100/50">
+                            {product.category || "Uncategorized"}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 sm:justify-end">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${
+                              product.quantity <= 5
+                                ? "bg-rose-500/20 text-rose-200"
+                                : "bg-emerald-500/15 text-emerald-100"
+                            }`}
+                          >
+                            Stock: {product.quantity}
+                          </span>
+                          <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-amber-200">
+                            Rs {product.price.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => handleEdit(product)}
+                          className="uppercase tracking-[0.2em]"
                         >
                           Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p.id)}
-                          className="text-destructive text-[10px] font-black uppercase"
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="danger"
+                          onClick={() => handleDelete(product.id)}
+                          className="uppercase tracking-[0.2em]"
                         >
                           Delete
-                        </button>
-                      </td>
-                    </tr>
+                        </Button>
+                      </div>
+                    </article>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              )}
+            </section>
           </div>
         </div>
       )}
