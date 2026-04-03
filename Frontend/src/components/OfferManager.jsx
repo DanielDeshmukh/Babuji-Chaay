@@ -186,19 +186,19 @@ const OfferManager = () => {
   };
 
   return (
-    <div className="min-h-0 text-amber-50">
-      <header className="mb-6 flex flex-col gap-3 border-b border-emerald-900/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="min-h-0 text-foreground">
+      <header className="mb-6 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-black tracking-tight text-amber-200 sm:text-3xl">
+          <h1 className="text-2xl font-black tracking-tight text-primary sm:text-3xl">
             Offer Manager
           </h1>
-          <p className="mt-1 text-[11px] uppercase tracking-[0.24em] text-emerald-100/60">
+          <p className="mt-1 text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
             Campaigns and Promotions
           </p>
         </div>
 
         {userId && (
-          <div className="w-full sm:w-72">
+          <div className="w-full sm:w-full lg:max-w-sm">
             <Input
               type="text"
               placeholder="Search Offers..."
@@ -210,15 +210,15 @@ const OfferManager = () => {
       </header>
 
       {message && (
-        <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center text-sm font-semibold text-amber-100">
+        <div className="mb-6 rounded-2xl border border-border bg-background p-4 text-center text-sm font-semibold text-foreground">
           {message}
         </div>
       )}
 
       {userId && (
         <>
-          <section className="mb-8 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
-            <div className="bg-gradient-to-r from-amber-500 to-yellow-400 px-4 py-4 text-sm font-black uppercase tracking-[0.24em] text-slate-950 sm:px-6">
+          <section className="mb-8 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+            <div className="border-b border-border bg-background px-4 py-4 text-sm font-black uppercase tracking-[0.24em] text-primary sm:px-6">
               {form.id ? "Modify Existing Offer" : "Create New Promotion"}
             </div>
 
@@ -228,7 +228,7 @@ const OfferManager = () => {
             >
               <div className="min-w-0 space-y-4">
                 <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-100/70">
+                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                     Campaign Name
                   </label>
                   <Input
@@ -240,7 +240,7 @@ const OfferManager = () => {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-100/70">
+                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                     Description
                   </label>
                   <textarea
@@ -248,20 +248,20 @@ const OfferManager = () => {
                     value={form.description}
                     onChange={handleChange}
                     rows={3}
-                    className="min-h-28 w-full rounded-xl border border-emerald-900/60 bg-slate-950/80 px-4 py-3 text-sm text-amber-50 outline-none transition-colors placeholder:text-amber-100/45 focus:border-amber-400/50 focus-visible:ring-2 focus-visible:ring-amber-400/60"
+                    className="min-h-28 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-100/70">
+                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                       Type
                     </label>
                     <select
                       name="discount_type"
                       value={form.discount_type}
                       onChange={handleChange}
-                      className="min-h-11 w-full rounded-xl border border-emerald-900/60 bg-slate-950/80 px-4 py-3 text-sm text-amber-50 outline-none transition-colors focus:border-amber-400/50 focus-visible:ring-2 focus-visible:ring-amber-400/60"
+                      className="h-12 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <option value="percentage">Percent (%)</option>
                       <option value="fixed">Fixed (Rs)</option>
@@ -269,7 +269,7 @@ const OfferManager = () => {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-100/70">
+                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                       Value
                     </label>
                     <Input
@@ -282,24 +282,24 @@ const OfferManager = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-slate-900/90 p-4 sm:grid-cols-2">
-                  <label className="flex min-h-11 items-center gap-3 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-amber-100">
+                <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border bg-background p-4 sm:grid-cols-2">
+                  <label className="flex h-12 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground">
                     <input
                       type="checkbox"
                       name="is_recurring"
                       checked={form.is_recurring}
                       onChange={handleChange}
-                      className="h-5 w-5 accent-amber-400"
+                      className="accent-primary"
                     />
                     Recurring
                   </label>
-                  <label className="flex min-h-11 items-center gap-3 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-amber-100">
+                  <label className="flex h-12 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground">
                     <input
                       type="checkbox"
                       name="is_active"
                       checked={form.is_active}
                       onChange={handleChange}
-                      className="h-5 w-5 accent-amber-400"
+                      className="accent-primary"
                     />
                     Active
                   </label>
@@ -307,8 +307,8 @@ const OfferManager = () => {
               </div>
 
               <div className="min-w-0 space-y-4">
-                <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4">
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-100/70">
+                <div className="rounded-2xl border border-border bg-background p-4">
+                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                     Apply to Products
                   </label>
 
@@ -319,21 +319,21 @@ const OfferManager = () => {
                     className="mb-3"
                   />
 
-                  <div className="max-h-56 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/80">
+                  <div className="max-h-56 overflow-y-auto rounded-2xl border border-border bg-card">
                     {filteredProducts.map((product) => (
                       <label
                         key={product.id}
-                        className="flex min-h-11 items-center gap-3 border-b border-white/5 px-3 py-3 hover:bg-white/5"
+                        className="flex min-h-12 items-center gap-3 border-b border-border px-3 py-3 last:border-b-0 hover:bg-muted"
                       >
                         <input
                           type="checkbox"
                           checked={form.product_ids.includes(product.id)}
                           onChange={() => toggleProduct(product.id)}
-                          className="accent-amber-400"
+                          className="accent-primary"
                         />
-                        <span className="min-w-0 text-sm font-medium text-amber-50">
+                        <span className="min-w-0 text-sm font-medium text-foreground">
                           {product.name}{" "}
-                          <span className="font-normal text-emerald-100/55">
+                          <span className="font-normal text-primary">
                             Rs {product.price}
                           </span>
                         </span>
@@ -352,7 +352,7 @@ const OfferManager = () => {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-100/70">
+                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                     Scheduling
                   </label>
 
@@ -361,7 +361,7 @@ const OfferManager = () => {
                       name="day_of_week"
                       value={form.day_of_week}
                       onChange={handleChange}
-                      className="min-h-11 w-full rounded-xl border border-emerald-900/60 bg-slate-950/80 px-4 py-3 text-sm text-amber-50 outline-none transition-colors focus:border-amber-400/50 focus-visible:ring-2 focus-visible:ring-amber-400/60"
+                      className="h-12 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
                       required
                     >
                       <option value="">Select Day...</option>
@@ -408,15 +408,15 @@ const OfferManager = () => {
           </section>
 
           <div className="space-y-4">
-            <h3 className="flex items-center gap-2 text-xl font-black uppercase tracking-tight text-amber-200">
+            <h3 className="flex items-center gap-2 text-xl font-black uppercase tracking-tight text-primary">
               Existing Campaigns
-              <span className="rounded-full bg-slate-900 px-3 py-1 text-xs text-emerald-100/60">
+              <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
                 {offers.length}
               </span>
             </h3>
 
             {loading ? (
-              <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-10 text-center font-bold text-emerald-100/55 animate-pulse">
+              <div className="rounded-3xl border border-border bg-card p-10 text-center font-bold text-muted-foreground animate-pulse">
                 Fetching records...
               </div>
             ) : (
@@ -424,34 +424,34 @@ const OfferManager = () => {
                 {filteredOffers.map((offer) => (
                   <div
                     key={offer.id}
-                    className="group flex min-w-0 flex-col gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.28)] transition-all hover:border-amber-400/40 sm:p-5 lg:flex-row lg:items-center lg:justify-between"
+                    className="flex min-w-0 flex-col gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <h4 className="break-words text-lg font-black uppercase text-amber-100">
+                        <h4 className="break-words text-lg font-black uppercase text-foreground">
                           {offer.name}
                         </h4>
                         <span
                           className={`inline-flex w-fit rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${
                             offer.is_active
-                              ? "bg-amber-400 text-slate-950"
-                              : "bg-slate-800 text-emerald-100/60"
+                              ? "bg-primary text-primary-foreground"
+                              : "border border-border bg-background text-muted-foreground"
                           }`}
                         >
                           {offer.is_active ? "Active" : "Paused"}
                         </span>
                       </div>
 
-                      <p className="mb-3 break-words text-sm leading-6 text-emerald-100/65">
+                      <p className="mb-3 break-words text-sm leading-6 text-muted-foreground">
                         {offer.description || "No description provided."}
                       </p>
 
                       <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-200">
+                        <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-bold text-primary">
                           {offer.discount_value}
                           {offer.discount_type === "percentage" ? "%" : " Rs"} OFF
                         </span>
-                        <span className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-bold uppercase text-emerald-100/65">
+                        <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-bold uppercase text-muted-foreground">
                           {offer.is_recurring
                             ? `Weekly: ${dayNames[offer.day_of_week]}`
                             : `${offer.start_date || "Live"} - ${offer.end_date || "Open"}`}
@@ -463,14 +463,14 @@ const OfferManager = () => {
                       <Button
                         onClick={() => handleEdit(offer)}
                         variant="secondary"
-                        className="uppercase tracking-[0.2em] sm:min-w-32"
+                        className="uppercase tracking-[0.2em]"
                       >
                         Edit
                       </Button>
                       <Button
                         onClick={() => handleDelete(offer.id)}
                         variant="danger"
-                        className="uppercase tracking-[0.2em] sm:min-w-32"
+                        className="uppercase tracking-[0.2em]"
                       >
                         Delete
                       </Button>

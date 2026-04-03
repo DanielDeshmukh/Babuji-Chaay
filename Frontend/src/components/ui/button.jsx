@@ -7,13 +7,11 @@ const Button = React.forwardRef(
     ref
   ) => {
     const variants = {
-      primary:
-        "bg-amber-500 text-slate-950 shadow-[0_10px_30px_rgba(245,158,11,0.24)] hover:bg-amber-400",
-      secondary:
-        "border border-emerald-900/70 bg-slate-800 text-amber-100 hover:bg-slate-700",
-      ghost:
-        "border border-white/10 bg-transparent text-amber-200 hover:bg-white/5",
-      danger: "bg-rose-500 text-white hover:bg-rose-400",
+      primary: "bg-primary text-primary-foreground hover:opacity-90",
+      secondary: "border border-border bg-card text-foreground hover:bg-muted",
+      ghost: "border border-border bg-background text-primary hover:bg-card",
+      danger:
+        "bg-destructive text-destructive-foreground hover:opacity-90",
     };
 
     return (
@@ -21,8 +19,8 @@ const Button = React.forwardRef(
         ref={ref}
         type={type}
         className={cn(
-          "inline-flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
+          "inline-flex h-12 w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           "disabled:cursor-not-allowed disabled:opacity-50",
           variants[variant] || variants.primary,
           className

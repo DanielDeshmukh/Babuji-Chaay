@@ -1,20 +1,15 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabaseClient";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import useCurrentUser from "@/hooks/useCurrentUser";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
-// ==========================
-// Notification Component
-// ==========================
-const Notification = ({ message, type, onClose }) => {
+const Notification = ({ message, onClose }) => {
   if (!message) return null;
-
-  const baseClasses =
-    "fixed bottom-5 right-5 p-4 rounded-lg shadow-xl text-white transition-opacity duration-300 z-50";
-  const typeClasses = type === "error" ? "bg-red-600" : "bg-green-600";
 
   useEffect(() => {
     const timer = setTimeout(() => onClose(), 4000);
@@ -22,18 +17,18 @@ const Notification = ({ message, type, onClose }) => {
   }, [message, onClose]);
 
   return (
-    <div className={`${baseClasses} ${typeClasses} flex items-center justify-between`}>
+    <div className="fixed bottom-5 right-5 z-50 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 text-foreground shadow-lg">
       <span>{message}</span>
-      <button onClick={onClose} className="ml-4 font-bold">
+      <button
+        onClick={onClose}
+        className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary"
+      >
         &times;
       </button>
     </div>
   );
 };
 
-// ==========================
-// MAIN INVENTORY COMPONENT
-// ==========================
 const Inventory = () => {
   const [products, setProducts] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
@@ -44,21 +39,15 @@ const Inventory = () => {
 
   const { user, loading: userLoading } = useCurrentUser();
 
-  // ==========================
-  // Helpers
-  // ==========================
   const getSessionToken = async () => {
     const { data } = await supabase.auth.getSession();
     return data.session?.access_token || null;
   };
 
-  const notify = (message, type) => {
-    setNotification({ message, type });
+  const notify = (message) => {
+    setNotification(message);
   };
 
-  // ==========================
-  // FETCH ALL DATA (Products + Menu)
-  // ==========================
   const fetchAll = async () => {
     if (!user) return;
 
@@ -67,9 +56,6 @@ const Inventory = () => {
     try {
       const token = await getSessionToken();
 
-      // ------------------------------
-      // GET PRODUCTS
-      // ------------------------------
       const { data: prodResponse, error: prodError } =
         await supabase.functions.invoke("get-products", {
           body: { user_id: user.id },
@@ -79,9 +65,6 @@ const Inventory = () => {
       if (prodError) throw new Error(prodError.message);
       setProducts(prodResponse?.products || []);
 
-      // ------------------------------
-      // GET TODAY’S MENU
-      // ------------------------------
       const { data: menuResponse, error: menuError } =
         await supabase.functions.invoke("get-todays-menu", {
           headers: { Authorization: `Bearer ${token}` },
@@ -90,20 +73,16 @@ const Inventory = () => {
       if (menuError) throw new Error(menuError.message);
 
       setMenuItems(menuResponse?.todays_menu || []);
-    } catch (err) {
-      console.error("❌ FetchAll Error:", err.message);
-      notify(`Failed to fetch: ${err.message}`, "error");
+    } catch (error) {
+      console.error("FetchAll Error:", error.message);
+      notify(`Failed to fetch: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // ==========================
-  // useEffect → initial load + realtime
-  // ==========================
   useEffect(() => {
-    if (userLoading) return;
-    if (!user) return;
+    if (userLoading || !user) return;
 
     fetchAll();
 
@@ -123,9 +102,6 @@ const Inventory = () => {
     return () => supabase.removeChannel(channel);
   }, [user, userLoading]);
 
-  // ==========================
-  // MENU ACTIONS
-  // ==========================
   const addToMenu = async (productId, productName) => {
     try {
       const token = await getSessionToken();
@@ -138,11 +114,10 @@ const Inventory = () => {
       if (error) throw new Error(error.message);
 
       setMenuItems((prev) => [...prev, data.menu_item]);
-
-      notify(`Added ${productName} to menu!`, "success");
-    } catch (err) {
-      console.error("❌ Add Menu Error:", err.message);
-      notify(err.message, "error");
+      notify(`Added ${productName} to menu.`);
+    } catch (error) {
+      console.error("Add Menu Error:", error.message);
+      notify(error.message);
     }
   };
 
@@ -150,7 +125,7 @@ const Inventory = () => {
     try {
       const token = await getSessionToken();
 
-      const { data, error } = await supabase.functions.invoke("remove-menu", {
+      const { error } = await supabase.functions.invoke("remove-menu", {
         body: { id: rowId },
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -158,111 +133,154 @@ const Inventory = () => {
       if (error) throw new Error(error.message);
 
       setMenuItems((prev) => prev.filter((item) => item.id !== rowId));
-
-      notify(`Removed ${productName}`, "success");
-    } catch (err) {
-      console.error("❌ Remove Menu Error:", err.message);
-      notify(err.message, "error");
+      notify(`Removed ${productName}.`);
+    } catch (error) {
+      console.error("Remove Menu Error:", error.message);
+      notify(error.message);
     }
   };
 
-  // ==========================
-  // UI RENDER
-  // ==========================
+  const grouped = useMemo(
+    () =>
+      products.reduce((acc, product) => {
+        const category = product.category || "Uncategorized";
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(product);
+        return acc;
+      }, {}),
+    [products]
+  );
+
+  const categories = useMemo(() => ["All", ...Object.keys(grouped)], [grouped]);
+  const normalizedSearch = search.trim().toLowerCase();
+  const shouldShowResults = normalizedSearch.length > 0;
+
+  const filteredProducts = useMemo(() => {
+    if (!shouldShowResults) return [];
+
+    return (activeCategory === "All" ? products : grouped[activeCategory] || []).filter(
+      (product) =>
+        product.name?.toLowerCase().includes(normalizedSearch) ||
+        (product.category || "").toLowerCase().includes(normalizedSearch)
+    );
+  }, [activeCategory, grouped, normalizedSearch, products, shouldShowResults]);
+
   if (loading || userLoading) {
-    return <p className="text-center mt-6 text-foreground">Loading...</p>;
+    return <p className="mt-6 text-center text-foreground">Loading...</p>;
   }
 
-  const grouped = products.reduce((acc, p) => {
-    if (!acc[p.category]) acc[p.category] = [];
-    acc[p.category].push(p);
-    return acc;
-  }, {});
-
-  const categories = ["All", ...Object.keys(grouped)];
-
-  const filteredProducts = (
-    activeCategory === "All" ? products : grouped[activeCategory] || []
-  ).filter((p) => p.name?.toLowerCase().includes(search.toLowerCase()));
-
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground relative">
+    <div className="min-h-screen bg-background text-foreground">
       <Header />
 
       <Notification
-        message={notification?.message}
-        type={notification?.type}
+        message={notification}
         onClose={() => setNotification(null)}
       />
 
-      {user && (
-        <div className="absolute top-2 right-2 bg-accent text-accent-foreground text-xs px-3 py-1 rounded-md shadow-lg">
-          Dev: {user.name || "Unknown"} (ID: {user.id})
-        </div>
-      )}
-
-      <main className="flex-grow px-4 py-6 max-w-7xl mx-auto w-full">
-        <input
-          type="text"
-          placeholder="Search products..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full p-3 mb-4 rounded-lg border border-border bg-card text-foreground"
-        />
-
-        {/* CATEGORY FILTER */}
-        <div className="flex gap-2 overflow-x-auto mb-6 pb-2">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors ${
-                activeCategory === cat
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-card hover:bg-muted"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        {/* PRODUCTS GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredProducts.map((p) => {
-            const exists = menuItems.find((m) => m.product_id === p.id);
-
-            return (
-              <div
-                key={p.id}
-                className="border border-border rounded-lg p-4 bg-card shadow-sm hover:shadow-md flex flex-col justify-between"
-              >
-                <div>
-                  <p className="font-semibold mb-1">{p.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Qty: {p.quantity}
-                  </p>
-                  <p className="text-sm font-bold text-accent mt-1">₹{p.price}</p>
-                </div>
-
-                {exists ? (
-                  <button
-                    onClick={() => removeFromMenu(exists.id, p.name)}
-                    className="mt-3 w-full px-3 py-2 rounded-md text-sm bg-red-500 text-white"
-                  >
-                    Remove
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => addToMenu(p.id, p.name)}
-                    className="mt-3 w-full px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground"
-                  >
-                    Add
-                  </button>
-                )}
+      <main className="px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto flex max-w-screen-xl flex-col gap-4 lg:gap-6">
+          <section className="rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-primary sm:text-3xl">
+                  Inventory
+                </h1>
+                <p className="mt-1 text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                  Search and manage today&apos;s menu-ready products
+                </p>
               </div>
-            );
-          })}
+
+              {user && (
+                <div className="rounded-2xl border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
+                  Dev: {user.name || "Unknown"} (ID: {user.id})
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-col gap-4 lg:flex-row">
+              <div className="w-full lg:flex-1">
+                <Input
+                  type="text"
+                  placeholder="Search products..."
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto pb-2 lg:max-w-[55%]">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setActiveCategory(category)}
+                    className={`h-12 whitespace-nowrap rounded-full border px-4 text-sm transition-colors ${
+                      activeCategory === category
+                        ? "bg-primary text-primary-foreground border-border"
+                        : "bg-background text-foreground border-border hover:bg-muted"
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5">
+            {!shouldShowResults ? (
+              <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-border bg-background p-6 text-center">
+                <div>
+                  <p className="text-base font-semibold text-foreground">
+                    Search to reveal inventory items.
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    The list stays hidden by default so long product catalogs remain usable on mobile.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredProducts.map((product) => {
+                  const exists = menuItems.find((item) => item.product_id === product.id);
+
+                  return (
+                    <div
+                      key={product.id}
+                      className="flex flex-col justify-between rounded-2xl border border-border bg-background p-4"
+                    >
+                      <div>
+                        <p className="font-semibold text-foreground">{product.name}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Qty: {product.quantity}
+                        </p>
+                        <p className="mt-2 text-sm font-bold text-primary">
+                          Rs {product.price}
+                        </p>
+                      </div>
+
+                      {exists ? (
+                        <Button
+                          onClick={() => removeFromMenu(exists.id, product.name)}
+                          variant="danger"
+                          className="mt-4"
+                        >
+                          Remove
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => addToMenu(product.id, product.name)}
+                          className="mt-4"
+                        >
+                          Add
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
       </main>
 
@@ -272,4 +290,3 @@ const Inventory = () => {
 };
 
 export default Inventory;
-
