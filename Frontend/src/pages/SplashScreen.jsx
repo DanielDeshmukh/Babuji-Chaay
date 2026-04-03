@@ -67,16 +67,23 @@ const clearAuthHashImmediately = (payload, mountedAt) => {
 };
 
 const SplashScreen = () => {
+  const initialCallbackPayload =
+    typeof window !== "undefined" ? getCallbackPayload() : null;
+
+  if (typeof window !== "undefined") {
+    clearAuthHashImmediately(initialCallbackPayload, Date.now());
+  }
+
   const navigate = useNavigate();
   const [status, setStatus] = useState("Securing your session...");
   const [errorMessage, setErrorMessage] = useState("");
   const hasResolvedRef = useRef(false);
   const mountedAtRef = useRef(Date.now());
-  const callbackPayloadRef = useRef(null);
+  const callbackPayloadRef = useRef(initialCallbackPayload);
 
   useLayoutEffect(() => {
     mountedAtRef.current = Date.now();
-    callbackPayloadRef.current = getCallbackPayload();
+    callbackPayloadRef.current = callbackPayloadRef.current ?? getCallbackPayload();
     clearAuthHashImmediately(callbackPayloadRef.current, mountedAtRef.current);
   }, []);
 
