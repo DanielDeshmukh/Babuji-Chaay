@@ -15,8 +15,6 @@ const Inventory = () => {
   const fetchInitialData = useCallback(async () => {
     try {
       setLoading(true);
-      
-      // Get current user session
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -24,7 +22,6 @@ const Inventory = () => {
         return;
       }
 
-      // Fetch Products and Menu in parallel for speed
       const [productsRes, menuRes] = await Promise.all([
         supabase.functions.invoke("get-products", {
           body: { user_id: user.id },
@@ -49,7 +46,6 @@ const Inventory = () => {
   useEffect(() => {
     fetchInitialData();
 
-    // Real-time subscription for menu updates
     const channel = supabase
       .channel("realtime-todays-menu")
       .on(
@@ -75,13 +71,7 @@ const Inventory = () => {
         },
       });
       
-      if (error) {
-        if (error.status === 409) {
-          console.warn("Item already on menu.");
-        } else {
-          throw error;
-        }
-      }
+      if (error) throw error;
 
       if (data?.menu_item) {
         setMenuItems((prev) => [...prev, data.menu_item]);
@@ -124,41 +114,38 @@ const Inventory = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1E4B2E] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#D4A23A] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-[#FDFCF6] font-medium">Brewing your inventory...</p>
-        </div>
+      <div className="min-h-screen bg-[#0A1F12] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#D4A23A] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#1E4B2E]">
+    <div className="min-h-screen flex flex-col bg-[#0A1F12] text-white font-sans">
       <Header />
 
-      <main className="flex-grow px-4 py-6 max-w-7xl mx-auto w-full">
-        {/* Search Bar */}
-        <div className="relative mb-8">
+      <main className="flex-grow px-6 py-8 max-w-[1400px] mx-auto w-full">
+        {/* Search Bar - Matches Screenshot Style */}
+        <div className="mb-6">
           <input
             type="text"
-            placeholder="Search our collection..."
+            placeholder="Search products..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full p-4 pl-6 rounded-2xl border-2 border-[#D4A23A]/40 bg-[#FDFCF6] text-[#1E4B2E] placeholder-gray-400 focus:border-[#D4A23A] focus:ring-4 focus:ring-[#D4A23A]/10 transition-all outline-none shadow-inner"
+            className="w-full p-3 rounded-lg bg-[#0F2D1C] border border-[#1A4D30] text-[#E0E0E0] placeholder-[#4A6D58] focus:outline-none focus:border-[#D4A23A] transition-all"
           />
         </div>
 
-        {/* Categories */}
+        {/* Categories - Matches Pill Style */}
         <div className="flex gap-3 overflow-x-auto mb-10 pb-2 no-scrollbar">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-8 py-2.5 rounded-full text-sm font-bold transition-all duration-300 shadow-md ${
+              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
                 activeCategory === cat
-                  ? "bg-[#D4A23A] text-[#1E4B2E] ring-2 ring-[#D4A23A] ring-offset-2 ring-offset-[#1E4B2E]"
-                  : "bg-[#FDFCF6] text-[#1E4B2E] hover:bg-[#E6CCB2] opacity-90"
+                  ? "bg-[#D4A23A] text-[#0A1F12]"
+                  : "bg-[#0F2D1C] text-[#A0B0A6] hover:bg-[#1A4D30]"
               }`}
             >
               {cat}
@@ -166,8 +153,8 @@ const Inventory = () => {
           ))}
         </div>
 
-        {/* Products Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        {/* Products Grid - Matches 4-column Screenshot Layout */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredProducts.map((product) => {
             const menuItem = menuItems.find((m) => m.product_id === product.id);
             const isProcessing = processingId === product.id;
@@ -175,44 +162,41 @@ const Inventory = () => {
             return (
               <div
                 key={product.id}
-                className="flex flex-col border border-[#D4A23A]/20 rounded-3xl p-6 bg-[#FDFCF6] shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
+                className="flex flex-col rounded-xl bg-[#0F2D1C] border border-[#1A4D30] overflow-hidden shadow-lg"
               >
-                <div className="mb-4">
-                  <span className="bg-[#1E4B2E]/10 text-[#1E4B2E] text-[10px] px-2 py-1 rounded font-black uppercase">
-                    {product.category}
-                  </span>
-                  <h3 className="text-xl font-extrabold text-[#1E4B2E] mt-3 leading-tight">
+                <div className="p-6 text-center flex-grow flex flex-col justify-center">
+                  <h3 className="text-lg font-bold text-white mb-2">
                     {product.name}
                   </h3>
+                  <p className="text-sm text-[#A0B0A6] mb-1">
+                    Qty: {product.quantity}
+                  </p>
+                  <p className="text-lg font-bold text-[#D4A23A]">
+                    ₹{product.price}
+                  </p>
                 </div>
 
-                <div className="flex justify-between items-end mt-auto pt-4 border-t border-gray-100">
-                  <div>
-                    <p className="text-[11px] text-gray-400 uppercase font-bold tracking-tighter">Availability</p>
-                    <p className="text-sm font-bold text-[#1E4B2E]">{product.quantity} units</p>
-                  </div>
-                  <p className="text-2xl font-black text-[#D4A23A]">₹{product.price}</p>
+                <div className="px-4 pb-4 mt-auto">
+                  <button
+                    disabled={isProcessing}
+                    onClick={() => menuItem ? handleRemoveFromMenu(menuItem.id, product.id) : handleAddToMenu(product.id)}
+                    className={`w-full py-2.5 rounded-lg text-sm font-bold transition-all ${
+                      menuItem 
+                      ? "bg-[#EF4444] text-white hover:bg-[#DC2626]" 
+                      : "bg-[#D4A23A] text-[#0A1F12] hover:bg-[#C2922F]"
+                    } disabled:opacity-50`}
+                  >
+                    {isProcessing ? "..." : menuItem ? "Remove" : "Add"}
+                  </button>
                 </div>
-
-                <button
-                  disabled={isProcessing}
-                  onClick={() => menuItem ? handleRemoveFromMenu(menuItem.id, product.id) : handleAddToMenu(product.id)}
-                  className={`mt-6 w-full py-3.5 rounded-2xl text-sm font-black transition-all duration-200 active:scale-95 ${
-                    menuItem 
-                    ? "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white" 
-                    : "bg-[#1E4B2E] text-[#FDFCF6] hover:bg-[#163B23] shadow-md"
-                  } disabled:opacity-30`}
-                >
-                  {isProcessing ? "Working..." : menuItem ? "Remove Item" : "Add to Menu"}
-                </button>
               </div>
             );
           })}
         </div>
         
         {filteredProducts.length === 0 && (
-          <div className="text-center py-32 opacity-40">
-            <p className="text-[#FDFCF6] text-xl font-medium italic">No matches found in your inventory.</p>
+          <div className="text-center py-20 text-[#4A6D58]">
+            No products found.
           </div>
         )}
       </main>
