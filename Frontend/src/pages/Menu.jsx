@@ -323,9 +323,6 @@ const Menu = () => {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-primary">Today&apos;s Menu</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Quick billing with live offers and special-number logic
-                </p>
               </div>
               <div className="w-full lg:max-w-md">
                 <Input
@@ -345,9 +342,6 @@ const Menu = () => {
                 className="flex flex-col rounded-3xl border border-border bg-card p-4 shadow-sm"
               >
                 <h3 className="text-lg font-bold text-primary">{item.name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  Stock: {item.quantity}
-                </p>
                 <p className="mt-2 text-xl font-bold text-foreground">
                   Rs {item.price}
                 </p>

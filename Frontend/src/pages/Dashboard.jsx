@@ -246,9 +246,6 @@ function Dashboard() {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-primary">Dashboard</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Overview of sales, reports, and transaction activity
-                </p>
               </div>
               <div className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
                 Overview
