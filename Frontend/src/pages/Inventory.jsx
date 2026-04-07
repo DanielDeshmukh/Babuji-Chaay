@@ -168,9 +168,6 @@ const Inventory = () => {
                   <h3 className="text-lg font-bold text-white mb-2">
                     {product.name}
                   </h3>
-                  <p className="text-sm text-[#A0B0A6] mb-1">
-                    Qty: {product.quantity}
-                  </p>
                   <p className="text-lg font-bold text-[#D4A23A]">
                     ₹{product.price}
                   </p>

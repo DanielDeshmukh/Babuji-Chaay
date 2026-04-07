@@ -145,7 +145,7 @@ const InventoryManager = () => {
             Inventory
           </h1>
           <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">
-            Stock and Catalog Management
+            Stock Management
           </p>
         </div>
 
@@ -226,9 +226,7 @@ const InventoryManager = () => {
                   <p className="text-xs font-black uppercase tracking-[0.24em] text-primary">
                     Find Inventory
                   </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Search to reveal matching products. The list stays hidden until you type.
-                  </p>
+                  
                 </div>
                 <div className="rounded-full border border-border bg-background px-3 py-2 text-xs font-semibold text-muted-foreground">
                   {shouldShowResults
@@ -273,11 +271,9 @@ const InventoryManager = () => {
                 <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-border bg-background p-6 text-center">
                   <div>
                     <p className="text-sm font-semibold text-foreground">
-                      Start typing in the search box to view inventory results.
+                      Search Result will appear here.
                     </p>
-                    <p className="mt-2 text-xs uppercase tracking-[0.22em] text-muted-foreground">
-                      Search-to-reveal keeps long catalogs manageable on mobile.
-                    </p>
+                    
                   </div>
                 </div>
               ) : filteredProducts.length === 0 ? (
