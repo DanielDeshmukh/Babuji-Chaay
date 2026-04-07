@@ -151,7 +151,7 @@ const LossDumpForm = ({ user, loading, setLoading, setMessage, products, closeFo
  * Main Profile Component
  */
 const Profile = () => {
-  const { user, profile } = useUser();
+  const { user, profile, setProfile } = useUser();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [showAuthModalForLossDump, setShowAuthModalForLossDump] = useState(false);
@@ -200,6 +200,7 @@ const Profile = () => {
                 <ProfileForm
                   profile={profile}
                   user={user}
+                  setProfile={setProfile}
                   loading={loading}
                   setLoading={setLoading}
                   setMessage={setMessage}

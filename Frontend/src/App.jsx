@@ -89,7 +89,7 @@ function App() {
   }, [location.pathname]);
 
   return (
-    <UserContext.Provider value={{ user, profile }}>
+    <UserContext.Provider value={{ user, profile, setProfile }}>
       <div className="min-h-screen text-white relative">
         <Background />
 
