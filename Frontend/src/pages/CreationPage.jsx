@@ -14,17 +14,17 @@ const CreationPage = () => {
       <Header />
 
       <main className="px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
-        <div className="mx-auto flex max-w-screen-xl flex-col gap-4 lg:gap-6">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
           <section className={shellCardClassName}>
             <SpecialNumber />
           </section>
 
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
-            <section className={`${shellCardClassName} flex-1`}>
+          <div className="flex flex-col gap-6">
+            <section className={`${shellCardClassName} w-full`}>
               <InventoryManager />
             </section>
 
-            <div className="flex w-full flex-col gap-4 lg:min-w-0 lg:basis-[42%]">
+            <div className="flex w-full flex-col gap-6">
               <section className={shellCardClassName}>
                 <OfferManager />
               </section>

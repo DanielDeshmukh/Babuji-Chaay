@@ -187,8 +187,8 @@ const OfferManager = () => {
 
   return (
     <div className="min-h-0 text-foreground">
-      <header className="mb-6 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
+      <header className="mb-6 flex w-full flex-col gap-4 border-b border-border pb-4">
+        <div className="min-w-0 w-full">
           <h1 className="text-2xl font-black tracking-tight text-primary sm:text-3xl">
             Offer Manager
           </h1>
@@ -198,7 +198,7 @@ const OfferManager = () => {
         </div>
 
         {userId && (
-          <div className="w-full sm:w-full lg:max-w-sm">
+          <div className="w-full">
             <Input
               type="text"
               placeholder="Search Offers..."
@@ -224,7 +224,7 @@ const OfferManager = () => {
 
             <form
               onSubmit={handleSubmit}
-              className="grid grid-cols-1 gap-5 p-4 sm:p-5 lg:grid-cols-2 lg:gap-6"
+              className="grid grid-cols-1 gap-6 p-4 sm:p-5"
             >
               <div className="min-w-0 space-y-4">
                 <div>
@@ -252,7 +252,7 @@ const OfferManager = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                       Type
@@ -282,7 +282,7 @@ const OfferManager = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border bg-background p-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border bg-background p-4">
                   <label className="flex h-12 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground">
                     <input
                       type="checkbox"
@@ -372,7 +372,7 @@ const OfferManager = () => {
                       ))}
                     </select>
                   ) : (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3">
                       <Input
                         type="date"
                         name="start_date"

@@ -166,11 +166,11 @@ const InventoryManager = () => {
       )}
 
       {userId && (
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-          <div className="w-full lg:flex-[0_0_34%]">
+        <div className="flex flex-col gap-5">
+          <div className="w-full">
             <form
               onSubmit={handleSubmit}
-              className="flex h-full flex-col gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5 lg:sticky lg:top-6"
+              className="flex h-full flex-col gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5"
             >
               <h3 className="border-b border-border pb-3 text-sm font-black uppercase tracking-[0.24em] text-primary">
                 {form.id ? "Update Item" : "New Product"}
@@ -192,7 +192,7 @@ const InventoryManager = () => {
                   placeholder="Category"
                 />
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4">
                   <Input
                     type="number"
                     name="quantity"

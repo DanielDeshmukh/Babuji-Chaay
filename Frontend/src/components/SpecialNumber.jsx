@@ -132,8 +132,8 @@ export default function SpecialNumber() {
   }
 
   return (
-    <div className="max-w-md mx-auto py-10 px-4">
-      <div className="bg-card border-2 border-border rounded-[2.5rem] shadow-2xl overflow-hidden">
+    <div className="w-full max-w-4xl mx-auto py-10 px-4">
+      <div className="w-full bg-card border-2 border-border rounded-[2.5rem] shadow-2xl overflow-hidden">
         
         {/* TOP SECTION: DISPLAY */}
         <div className="p-8 text-center bg-primary text-primary-foreground relative overflow-hidden">

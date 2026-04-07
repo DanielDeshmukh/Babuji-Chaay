@@ -143,7 +143,7 @@ const RefundComponent = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-4 min-h-screen bg-background text-foreground">
+    <div className="w-full max-w-4xl mx-auto p-4 bg-background text-foreground">
       {/* HEADER */}
       <header className="mb-8 border-b-4 border-destructive pb-4">
         <h1 className="text-4xl font-black tracking-tighter">REFUND CENTER</h1>
@@ -156,7 +156,7 @@ const RefundComponent = () => {
           <span className="w-5 h-5 bg-primary text-primary-foreground flex items-center justify-center rounded-full text-[10px]">1</span>
           Locate Original Transaction
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 gap-4 mb-4">
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase ml-1">Date of Purchase</label>
             <input type="date" value={billDate} onChange={e => setBillDate(e.target.value)}
