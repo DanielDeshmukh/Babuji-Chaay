@@ -348,7 +348,7 @@ const Menu = () => {
                 <div className="mt-4 flex items-center justify-between gap-2">
                   <Button
                     variant="danger"
-                    className="h-12 w-12 rounded-full p-0"
+                    className="h-12 w-12 border border-border rounded-full p-0"
                     onClick={() =>
                       updateBillQuantity(item.id, getQuantity(item.id) - 1)
                     }
