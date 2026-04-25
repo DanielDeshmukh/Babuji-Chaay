@@ -83,7 +83,7 @@ app.get("/", (req, res) => {
 app.use("/api/reports", requireAuth, reportRoutes);
 app.use("/api/transactions", requireAuth, transactionRoutes);
 app.use("/api/exports", requireAuth, exportRoutes);
-app.use("/api/refund", refundRoutes);
+app.use("/api/refund", requireAuth, refundRoutes);
 
 app.get("/api/db-test", async (req, res) => {
   try {

@@ -18,61 +18,66 @@ const RefundComponent = () => {
   const getRefundQty = (itemId) =>
     selectedRefunds.find((x) => x.billing_item_id === itemId)?.refund_qty || 0;
 
- const fetchBill = async () => {
-  if (loading) return;
-  setErrorMsg("");
-  setSuccessMsg("");
-  setSelectedRefunds([]);
-  setBillItems([]);
+  const fetchBill = async () => {
+    if (loading) return;
+    setErrorMsg("");
+    setSuccessMsg("");
+    setSelectedRefunds([]);
+    setBillItems([]);
 
-  if (!billDate || !billNo) return setErrorMsg("Enter Date & Bill No.");
+    if (!billDate || !billNo) return setErrorMsg("Enter Date & Bill No.");
 
-  setLoading(true);
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return setErrorMsg("Auth Error");
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return setErrorMsg("Auth Error");
 
-    /** * THE FIX: Explicitly define the window in IST (+05:30).
-     * This ensures the query captures early-morning transactions
-     * that technically fall into the previous day in UTC.
-     */
-    const start = `${billDate}T00:00:00+05:30`;
-    const end = `${billDate}T23:59:59+05:30`;
+      // Explicit IST window handling
+      const start = `${billDate}T00:00:00+05:30`;
+      const end = `${billDate}T23:59:59+05:30`;
 
-    const { data: trx, error: trxErr } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("daily_bill_no", Number(billNo))
-      .eq("user_id", user.id)
-      .gte("created_at", start)
-      .lte("created_at", end)
-      .single();
+      const { data: trx, error: trxErr } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("daily_bill_no", Number(billNo))
+        .eq("user_id", user.id)
+        .gte("created_at", start)
+        .lte("created_at", end)
+        .single();
 
-    if (trxErr || !trx) throw new Error("Bill not found.");
+      if (trxErr || !trx) throw new Error("Bill not found.");
 
-    setTransaction(trx);
+      setTransaction(trx);
 
-    const { data: items, error: itemsErr } = await supabase
-      .from("transaction_items")
-      .select("id, product_id, quantity, unit_price, products(name)")
-      .eq("transaction_id", trx.id)
-      .eq("item_type", "SALE");
+      // FIX: Selecting 'price' (Net Amount) instead of just 'unit_price' (Gross Amount)
+      const { data: items, error: itemsErr } = await supabase
+        .from("transaction_items")
+        .select("id, product_id, quantity, unit_price, price, products(name)")
+        .eq("transaction_id", trx.id)
+        .eq("item_type", "SALE");
 
-    if (itemsErr || !items || items.length === 0) throw new Error("No sale items found.");
+      if (itemsErr || !items || items.length === 0) throw new Error("No sale items found.");
 
-    setBillItems(items.map(i => ({
-      id: i.id,
-      product_id: i.product_id,
-      quantity: Number(i.quantity),
-      price: Number(i.unit_price),
-      name: i.products?.name || "Unnamed Product"
-    })));
-  } catch (err) {
-    setErrorMsg(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+      setBillItems(items.map(i => {
+        const qty = Number(i.quantity);
+        const totalPricePaid = Number(i.price); // Actual money received
+        
+        return {
+          id: i.id,
+          product_id: i.product_id,
+          quantity: qty,
+          // FIX: The 'price' we show is the effective price paid per unit
+          effective_unit_price: qty > 0 ? totalPricePaid / qty : 0,
+          total_paid: totalPricePaid,
+          name: i.products?.name || "Unnamed Product"
+        };
+      }));
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const updateRefundQty = (itemId, newQty) => {
     const item = billItems.find(i => i.id === itemId);
@@ -86,7 +91,8 @@ const RefundComponent = () => {
 
   const totalRefund = selectedRefunds.reduce((sum, entry) => {
     const item = billItems.find(i => i.id === entry.billing_item_id);
-    return sum + (entry.refund_qty * (item?.price || 0));
+    // FIX: Using effective_unit_price to calculate refund credit
+    return sum + (entry.refund_qty * (item?.effective_unit_price || 0));
   }, 0);
 
   const submitRefund = async () => {
@@ -96,19 +102,23 @@ const RefundComponent = () => {
     try {
       const entriesToInsert = selectedRefunds.map(entry => {
         const item = billItems.find(i => i.id === entry.billing_item_id);
+        const refundAmt = item.effective_unit_price * entry.refund_qty;
+        
         return {
           transaction_id: transaction.id,
           product_id: item.product_id,
           quantity: entry.refund_qty,
-          unit_price: item.price,
-          price: item.price * entry.refund_qty,
+          unit_price: item.effective_unit_price, // Stores price paid per unit
+          price: refundAmt, // Total credit being returned
           item_type: "REFUND",
+          user_id: transaction.user_id
         };
       });
 
       const { error } = await supabase.from("transaction_items").insert(entriesToInsert);
       if (error) throw error;
 
+      // Update the transaction table with refund log
       await supabase.from("transactions").update({
         refund: entriesToInsert.map(e => ({ product_id: e.product_id, qty: e.quantity, value: e.price }))
       }).eq("id", transaction.id);
@@ -120,7 +130,7 @@ const RefundComponent = () => {
           billNo: transaction.daily_bill_no,
           date: new Date().toLocaleString(),
           items: entriesToInsert.map(e => ({
-            name: billItems.find(bi => bi.product_id === e.product_id).name,
+            name: billItems.find(bi => bi.id === selectedRefunds.find(sr => sr.billing_item_id === bi.id)?.billing_item_id).name,
             qty: e.quantity,
             price: e.unit_price,
             amt: e.price
@@ -144,7 +154,6 @@ const RefundComponent = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 bg-background text-foreground">
-      {/* HEADER */}
       <header className="mb-8 border-b-4 border-destructive pb-4">
         <h1 className="text-4xl font-black tracking-tighter">REFUND CENTER</h1>
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Reversal & Credit Processing</p>
@@ -195,7 +204,10 @@ const RefundComponent = () => {
                 <div key={item.id} className="bg-card border-2 border-border p-4 rounded-2xl flex justify-between items-center group hover:border-primary transition-colors">
                   <div>
                     <h4 className="font-black uppercase text-sm leading-tight">{item.name}</h4>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase">Bought: {item.quantity} × ₹{item.price}</p>
+                    {/* FIX: Displays the Actual Price Paid after discount */}
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase">
+                      Bought: {item.quantity} × ₹{item.effective_unit_price.toFixed(2)}
+                    </p>
                   </div>
                   <div className="flex items-center bg-background border-2 border-muted rounded-xl p-1 gap-1">
                     <button onClick={() => updateRefundQty(item.id, currentRefund - 1)} className="w-8 h-8 flex items-center justify-center font-black hover:bg-muted rounded-lg">-</button>
@@ -207,19 +219,18 @@ const RefundComponent = () => {
             })}
           </div>
 
-          {/* TOTAL & SUBMIT */}
           <div className="mt-8 bg-destructive p-6 rounded-[2.5rem] text-destructive-foreground shadow-xl shadow-destructive/20">
             <div className="flex justify-between items-center mb-6">
               <span className="font-black uppercase tracking-widest text-xs opacity-80">Total Refund Credit</span>
               <span className="text-4xl font-black tracking-tighter">₹{totalRefund.toFixed(2)}</span>
             </div>
-             <button
-            onClick={submitRefund}
-            disabled={loading || totalRefund === 0}
-            className="w-full bg-primary text-primary-foreground font-black uppercase py-5 rounded-2xl shadow-lg hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
-          >
-            {loading ? "PROCESSING..." : "CONFIRM & PRINT REFUND"}
-          </button>
+            <button
+              onClick={submitRefund}
+              disabled={loading || totalRefund === 0}
+              className="w-full bg-primary text-primary-foreground font-black uppercase py-5 rounded-2xl shadow-lg hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
+            >
+              {loading ? "PROCESSING..." : "CONFIRM & PRINT REFUND"}
+            </button>
           </div>
         </section>
       )}
