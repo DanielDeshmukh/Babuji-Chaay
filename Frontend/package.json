@@ -4,12 +4,20 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --config vite.config.mobile.ts",
+    "build": "vite build --config vite.config.mobile.ts",
+    "build:web": "vite build --config vite.config.mobile.ts",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview --config vite.config.mobile.ts",
+    "cap:sync": "npm run build:web && npx cap sync android",
+    "android": "npm run cap:sync && npx cap open android",
+    "apk:debug": "npm run cap:sync && powershell -ExecutionPolicy Bypass -File .\\scripts\\android-build.ps1 assembleDebug",
+    "apk:release": "npm run cap:sync && powershell -ExecutionPolicy Bypass -File .\\scripts\\android-build.ps1 assembleRelease"
   },
   "dependencies": {
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
     "@radix-ui/react-slot": "^1.2.3",
     "@supabase/supabase-js": "^2.55.0",
     "autoprefixer": "^10.4.21",

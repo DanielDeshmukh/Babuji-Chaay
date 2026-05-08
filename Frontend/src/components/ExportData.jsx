@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { FiDownloadCloud, FiCalendar, FiClock } from "react-icons/fi";
 import supabase from "../lib/supabaseClient";
-import { downloadSalesExport } from "@/lib/apiClient";
 
 // --- Constants for Export Types ---
 const EXPORT_TYPES = {
@@ -18,6 +17,9 @@ const EXPORT_TYPES = {
         description: 'Detailed per-item sales for a specific day.' 
     }
 };
+
+const API_BASE = import.meta.env.VITE_API_BASE;
+const BACKEND_URL = `${API_BASE}/api/exports/sales`; 
 
 const ExportData = () => {
     const [loading, setLoading] = useState(false);
@@ -71,11 +73,31 @@ const ExportData = () => {
             exportName = `Daily_Itemized_${singleDate}.xlsx`;
         }
 
-        try {
-            // --- 3. Fetch File ---
-            const blob = await downloadSalesExport(params);
+        // --- 2. Build URL (User ID is omitted as it is handled by Middleware token) ---
+        const queryString = new URLSearchParams(params).toString();
+        const API_URL = `${BACKEND_URL}?${queryString}`; 
 
-            // --- 4. Download Process ---
+        try {
+            // --- 3. Get Session Token ---
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Session expired. Please re-login.");
+
+            // --- 4. Fetch File ---
+            const response = await fetch(API_URL, {
+                method: 'GET',
+                headers: { 
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json(); 
+                throw new Error(errorData.message || `Server error (${response.status})`);
+            }
+
+            // --- 5. Download Process ---
+            const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

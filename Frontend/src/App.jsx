@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import supabase from "@/lib/supabaseClient";
 import SplashScreen from "./pages/SplashScreen";
 import Dashboard from "./pages/Dashboard";
@@ -20,7 +20,6 @@ export const useUser = () => useContext(UserContext);
 function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const location = useLocation();
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -46,7 +45,6 @@ function App() {
           .single();
 
         if (profileError) throw profileError;
-
         setProfile(profileData);
       } catch (err) {
         console.error("Error fetching user/profile:", err.message);
@@ -71,25 +69,8 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    const titles = {
-      "/": "Register | Babuji Chaay",
-      "/login": "Login | Babuji Chaay",
-      "/home": "Dashboard | Babuji Chaay",
-      "/menu": "Menu Billing | Babuji Chaay",
-      "/inventory": "Inventory | Babuji Chaay",
-      "/settings": "Settings | Babuji Chaay",
-      "/profile": "Profile | Babuji Chaay",
-      "/create": "Create | Babuji Chaay",
-      "/auth": "Authentication | Babuji Chaay",
-      "/splashscreen": "Welcome | Babuji Chaay",
-    };
-
-    document.title = titles[location.pathname] || "Babuji Chaay";
-  }, [location.pathname]);
-
   return (
-    <UserContext.Provider value={{ user, profile, setProfile }}>
+    <UserContext.Provider value={{ user, profile }}>
       <div className="min-h-screen text-white relative">
         <Background />
 

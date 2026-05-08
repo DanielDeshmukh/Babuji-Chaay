@@ -95,7 +95,7 @@ const Header = () => {
             <a
               href="/create"
               onClick={handleCreateClick}
-              className="text-foreground hover:text-primary transition-colors"
+              className="text-foreground hover:text-secondary transition-colors"
             >
               Create
             </a>
@@ -103,17 +103,11 @@ const Header = () => {
 
           <div className="flex items-center space-x-3 sm:space-x-4">
             {/* Replaced hardcoded text/hover with theme classes */}
-            <button
-              type="button"
-              onClick={handleSetttingsClick}
-              className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card text-foreground transition-colors hover:text-primary"
-            >
-              <IoSettingsOutline className="w-5 h-5" />
-            </button>
+            < IoSettingsOutline className="w-5 h-5 text-foreground hover:text-primary cursor-pointer transition-colors" onClick={handleSetttingsClick}/>
             <NavLink
               to="/profile"
               // Replaced hardcoded ring color with primary
-              className="flex h-12 w-12 items-center justify-center rounded-full transition hover:ring-2 hover:ring-primary"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center hover:ring-2 hover:ring-primary transition"
             >
               {avatarUrl ? (
                 <img
@@ -129,8 +123,7 @@ const Header = () => {
             </NavLink>
 
             <button
-              type="button"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card md:hidden"
+              className="md:hidden"
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               {/* Replaced hardcoded text color with foreground */}
@@ -175,7 +168,7 @@ const Header = () => {
                 setShowAuthModal(true);
               }}
               // Replaced hardcoded text/hover with theme classes
-              className="text-foreground hover:text-primary transition-colors"
+              className="text-foreground hover:text-secondary transition-colors"
             >
               Create
             </a>

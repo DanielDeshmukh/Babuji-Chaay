@@ -8,19 +8,20 @@ const Settings = () => {
     <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
       <Header />
 
-      <main className="flex-grow px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
-        <div className="mx-auto flex max-w-screen-xl flex-col gap-4 lg:gap-6">
-          <section className="rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5">
-            <h1 className="border-b border-border pb-2 text-2xl font-semibold text-primary">
-              Settings
-            </h1>
-          </section>
+      <main className="flex-grow p-8">
+        <h1 className="text-2xl font-semibold mb-6 border-b border-border pb-2">
+          Settings
+        </h1>
 
-          <section className="rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5">
-            <div className="mx-auto max-w-3xl">
-              <ExportData />
-            </div>
-          </section>
+        <div className="space-y-6 max-w-3xl mx-auto">
+          <div className="flex items-center justify-between border-b border-border pb-4">
+            <span className="text-lg font-medium">Appearance</span>
+            <span className="px-4 py-2 rounded-md bg-card border border-border text-foreground">
+              Dark Theme
+            </span>
+          </div>
+
+          <ExportData />
         </div>
       </main>
 

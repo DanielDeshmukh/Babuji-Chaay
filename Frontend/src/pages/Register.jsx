@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import supabase from "../lib/supabaseClient";
-import { getAuthRedirectUrl } from "../lib/authRedirect";
 import { FcGoogle } from "react-icons/fc";
 import Logo from "../assets/Logo.png";
 
@@ -28,11 +27,11 @@ const Register = () => {
 
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: {
-          emailRedirectTo: getAuthRedirectUrl(),
+          emailRedirectTo: "http://localhost:5173/splashscreen",
         },
       });
 
@@ -41,6 +40,7 @@ const Register = () => {
       setMessage(
         "Registration successful! Please check your email to confirm your account."
       );
+      console.log("User registered:", data);
     } catch (err) {
       setMessage(err.message);
     } finally {
@@ -53,7 +53,7 @@ const Register = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: getAuthRedirectUrl(),
+          redirectTo: "http://localhost:5173/splashscreen",
         },
       });
       if (error) throw error;

@@ -1,0 +1,60 @@
+{
+  "name": "babujichaay-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "install:all": "npm install --prefix Frontend && npm install --prefix Backend",
+    "dev:web": "concurrently \"npm --prefix Backend run dev\" \"npm --prefix Frontend run dev\"",
+    "dev:electron": "cd Frontend && npx vite --config vite.config.ts",
+    "build": "cd Frontend && npx vite build --config vite.config.ts",
+    "build:web": "npm --prefix Frontend run build:web",
+    "cap:sync": "npm --prefix Frontend run cap:sync",
+    "apk:debug": "npm --prefix Frontend run apk:debug",
+    "apk:release": "npm --prefix Frontend run apk:release",
+    "dist": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
+    "vite": "^8.0.10",
+    "vite-plugin-electron": "^0.29.0"
+  },
+  "build": {
+    "appId": "com.babujichaay.desktop",
+    "productName": "Babuji Chaay",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "Backend",
+        "to": "Backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "Frontend/src/assets/Logo.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

@@ -1,19 +1,36 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  forwardRef,
+  useCallback,
+} from "react";
 import supabase from "../lib/supabaseClient";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+
 
 const dayNames = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ];
+
+  const NoKeyboardInput = forwardRef(
+    ({ value, onClick, placeholder, className }, ref) => (
+      <input
+        ref={ref}
+        value={value || ""}
+        onClick={(e) => {
+          e.preventDefault();
+          onClick?.(e);
+        }}
+        onFocus={(e) => e.target.blur()}
+        readOnly
+        data-no-keyboard
+        placeholder={placeholder}
+        className={className}
+      />
+    )
+  );
 
 const initialFormState = {
   id: null,
@@ -39,82 +56,50 @@ const OfferManager = () => {
   const [userId, setUserId] = useState(null);
   const [message, setMessage] = useState("");
 
+  // AUTH
   useEffect(() => {
     const fetchUser = async () => {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
-
+      const { data: { user }, error } = await supabase.auth.getUser();
       if (error) {
-        setMessage("Error verifying session.");
+        setMessage("⚠️ Error verifying session.");
         return;
       }
-
       if (user) setUserId(user.id);
-      else setMessage("Authentication required.");
+      else setMessage("❌ Authentication required.");
     };
-
     fetchUser();
   }, []);
 
+  // FETCH DATA
   const fetchProducts = useCallback(async () => {
     if (!userId) return;
-
-    const { data } = await supabase
-      .from("products")
-      .select("*")
-      .eq("user_id", userId)
-      .order("name");
-
+    const { data } = await supabase.from("products").select("*").eq("user_id", userId).order("name");
     setProducts(data || []);
   }, [userId]);
 
   const fetchOffers = useCallback(async () => {
     if (!userId) return;
-
     setLoading(true);
-    const { data } = await supabase
-      .from("offers")
-      .select("*")
-      .eq("user_id", userId)
-      .order("id", { ascending: false });
-
+    const { data } = await supabase.from("offers").select("*").eq("user_id", userId).order("id", { ascending: false });
     setOffers(data || []);
     setLoading(false);
   }, [userId]);
 
   useEffect(() => {
-    if (userId) {
-      fetchOffers();
-      fetchProducts();
-    }
+    if (userId) { fetchOffers(); fetchProducts(); }
   }, [userId, fetchOffers, fetchProducts]);
 
-  const filteredProducts = useMemo(
-    () =>
-      products.filter((product) =>
-        product.name.toLowerCase().includes(productSearch.toLowerCase())
-      ),
-    [productSearch, products]
-  );
-
-  const filteredOffers = useMemo(
-    () =>
-      offers.filter((offer) =>
-        offer.name.toLowerCase().includes(search.toLowerCase())
-      ),
-    [offers, search]
-  );
+  // LOGIC
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => p.name.toLowerCase().includes(productSearch.toLowerCase()));
+  }, [productSearch, products]);
 
   const toggleProduct = (id) => {
     setForm((prev) => {
       const exists = prev.product_ids.includes(id);
       return {
         ...prev,
-        product_ids: exists
-          ? prev.product_ids.filter((productId) => productId !== id)
-          : [...prev.product_ids, id],
+        product_ids: exists ? prev.product_ids.filter((pid) => pid !== id) : [...prev.product_ids, id],
       };
     });
   };
@@ -122,22 +107,17 @@ const OfferManager = () => {
   const selectAllFiltered = () => {
     setForm((prev) => ({
       ...prev,
-      product_ids: Array.from(
-        new Set([...prev.product_ids, ...filteredProducts.map((product) => product.id)])
-      ),
+      product_ids: Array.from(new Set([...prev.product_ids, ...filteredProducts.map(p => p.id)]))
     }));
   };
 
-  const handleChange = (event) => {
-    const { name, value, type, checked } = event.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!userId) return;
 
     const payload = {
@@ -149,34 +129,26 @@ const OfferManager = () => {
       is_recurring: form.is_recurring,
       discount_type: form.discount_type,
       discount_value: Number(form.discount_value),
-      day_of_week: form.is_recurring
-        ? form.day_of_week === ""
-          ? null
-          : Number(form.day_of_week)
-        : null,
+      day_of_week: form.is_recurring ? (form.day_of_week === "" ? null : Number(form.day_of_week)) : null,
       start_date: form.is_recurring ? null : form.start_date || null,
       end_date: form.is_recurring ? null : form.end_date || null,
     };
 
-    const { error } = form.id
+    const { error } = form.id 
       ? await supabase.from("offers").update(payload).eq("id", form.id)
       : await supabase.from("offers").insert([payload]);
 
     if (!error) {
       setForm(initialFormState);
       fetchOffers();
-      setMessage("Offer saved successfully.");
-      window.setTimeout(() => setMessage(""), 3000);
+      setMessage("✅ Offer saved successfully.");
+      setTimeout(() => setMessage(""), 3000);
     }
   };
 
   const handleEdit = (offer) => {
-    setForm({
-      ...offer,
-      discount_value: offer.discount_value || "",
-      day_of_week: offer.day_of_week ?? "",
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setForm({ ...offer, discount_value: offer.discount_value || "", day_of_week: offer.day_of_week ?? "" });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id) => {
@@ -185,305 +157,316 @@ const OfferManager = () => {
     fetchOffers();
   };
 
-  return (
-    <div className="min-h-0 text-foreground">
-      <header className="mb-6 flex w-full flex-col gap-4 border-b border-border pb-4">
-        <div className="min-w-0 w-full">
-          <h1 className="text-2xl font-black tracking-tight text-primary sm:text-3xl">
-            Offer Manager
-          </h1>
-          <p className="mt-1 text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-            Campaigns and Promotions
-          </p>
-        </div>
-
-        {userId && (
-          <div className="w-full">
-            <Input
-              type="text"
-              placeholder="Search Offers..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-        )}
-      </header>
-
-      {message && (
-        <div className="mb-6 rounded-2xl border border-border bg-background p-4 text-center text-sm font-semibold text-foreground">
-          {message}
-        </div>
-      )}
+ return (
+  <div className="max-w-4xl mx-auto p-6 bg-background min-h-screen text-foreground">
+    {/* HEADER */}
+    <header className="mb-8 border-b border-border pb-4 flex justify-between items-end">
+      <div>
+        <h1 className="text-3xl font-black tracking-tight">OFFER MANAGER</h1>
+        <p className="text-muted-foreground uppercase text-xs tracking-widest mt-1">
+          Campaigns & Promotions
+        </p>
+      </div>
 
       {userId && (
-        <>
-          <section className="mb-8 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-            <div className="border-b border-border bg-background px-4 py-4 text-sm font-black uppercase tracking-[0.24em] text-primary sm:px-6">
-              {form.id ? "Modify Existing Offer" : "Create New Promotion"}
-            </div>
+        <div className="text-right">
+          <input
+            type="text"
+            placeholder="Search Offers..."
+            className="p-2 border-2 border-border rounded-md text-sm bg-card w-64 outline-none focus:border-primary"
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
+    </header>
 
-            <form
-              onSubmit={handleSubmit}
-              className="grid grid-cols-1 gap-6 p-4 sm:p-5"
-            >
-              <div className="min-w-0 space-y-4">
+    {/* MESSAGE */}
+    {message && (
+      <div className="mb-6 p-4 rounded-md text-center font-bold border-2 border-border bg-secondary text-secondary-foreground">
+        {message}
+      </div>
+    )}
+
+    {userId && (
+      <>
+        {/* FORM CARD */}
+        <section className="bg-card border-2 border-border rounded-xl shadow-xl overflow-hidden mb-10">
+          <div className="bg-primary text-primary-foreground p-4 font-bold uppercase tracking-tight">
+            {form.id ? "Modify Existing Offer" : "Create New Promotion"}
+          </div>
+
+          <form
+            onSubmit={handleSubmit}
+            className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6"
+          >
+            {/* LEFT COLUMN */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1">
+                  Campaign Name
+                </label>
+                <input
+                  name="name"
+                  value={form.name}
+                  onChange={handleChange}
+                  className="w-full p-3 border-2 border-muted bg-background rounded-lg focus:border-primary outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1">
+                  Description
+                </label>
+                <textarea
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  rows={2}
+                  className="w-full p-3 border-2 border-muted bg-background rounded-lg focus:border-primary outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                    Campaign Name
+                  <label className="block text-xs font-bold uppercase mb-1">
+                    Type
                   </label>
-                  <Input
-                    name="name"
-                    value={form.name}
+                  <select
+                    name="discount_type"
+                    value={form.discount_type}
                     onChange={handleChange}
+                    className="w-full p-3 border-2 border-muted bg-background rounded-lg outline-none"
+                  >
+                    <option value="percentage">Percent (%)</option>
+                    <option value="fixed">Fixed (₹)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1">
+                    Value
+                  </label>
+                  <input
+                    name="discount_value"
+                    type="number"
+                    value={form.discount_value}
+                    onChange={handleChange}
+                    className="w-full p-3 border-2 border-muted bg-background rounded-lg outline-none"
                     required
                   />
                 </div>
-
-                <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                    Description
-                  </label>
-                  <textarea
-                    name="description"
-                    value={form.description}
-                    onChange={handleChange}
-                    rows={3}
-                    className="min-h-28 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                      Type
-                    </label>
-                    <select
-                      name="discount_type"
-                      value={form.discount_type}
-                      onChange={handleChange}
-                      className="h-12 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <option value="percentage">Percent (%)</option>
-                      <option value="fixed">Fixed (Rs)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                      Value
-                    </label>
-                    <Input
-                      name="discount_value"
-                      type="number"
-                      value={form.discount_value}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border bg-background p-4">
-                  <label className="flex h-12 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground">
-                    <input
-                      type="checkbox"
-                      name="is_recurring"
-                      checked={form.is_recurring}
-                      onChange={handleChange}
-                      className="accent-primary"
-                    />
-                    Recurring
-                  </label>
-                  <label className="flex h-12 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground">
-                    <input
-                      type="checkbox"
-                      name="is_active"
-                      checked={form.is_active}
-                      onChange={handleChange}
-                      className="accent-primary"
-                    />
-                    Active
-                  </label>
-                </div>
               </div>
 
-              <div className="min-w-0 space-y-4">
-                <div className="rounded-2xl border border-border bg-background p-4">
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                    Apply to Products
-                  </label>
-
-                  <Input
-                    placeholder="Filter products..."
-                    value={productSearch}
-                    onChange={(event) => setProductSearch(event.target.value)}
-                    className="mb-3"
+              <div className="flex gap-4 p-4 bg-muted rounded-lg border border-border">
+                <label className="flex items-center gap-2 font-bold text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="is_recurring"
+                    checked={form.is_recurring}
+                    onChange={handleChange}
+                    className="w-5 h-5 accent-primary"
                   />
+                  RECURRING
+                </label>
+                <label className="flex items-center gap-2 font-bold text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="is_active"
+                    checked={form.is_active}
+                    onChange={handleChange}
+                    className="w-5 h-5 accent-primary"
+                  />
+                  ACTIVE
+                </label>
+              </div>
+            </div>
 
-                  <div className="max-h-56 overflow-y-auto rounded-2xl border border-border bg-card">
-                    {filteredProducts.map((product) => (
-                      <label
-                        key={product.id}
-                        className="flex min-h-12 items-center gap-3 border-b border-border px-3 py-3 last:border-b-0 hover:bg-muted"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={form.product_ids.includes(product.id)}
-                          onChange={() => toggleProduct(product.id)}
-                          className="accent-primary"
-                        />
-                        <span className="min-w-0 text-sm font-medium text-foreground">
-                          {product.name}{" "}
-                          <span className="font-normal text-primary">
-                            Rs {product.price}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
+            {/* RIGHT COLUMN */}
+            <div className="space-y-4">
+              <div className="bg-muted/50 p-4 rounded-lg border border-border">
+                <label className="block text-xs font-bold uppercase mb-2">
+                  Apply to Products
+                </label>
 
-                  <Button
-                    type="button"
-                    onClick={selectAllFiltered}
-                    variant="ghost"
-                    className="mt-3 uppercase tracking-[0.2em]"
-                  >
-                    Select All Visible
-                  </Button>
-                </div>
+                <input
+                  placeholder="Filter products..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="w-full p-2 border-2 border-border mb-2 rounded bg-background text-sm outline-none focus:border-primary"
+                />
 
-                <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                    Scheduling
-                  </label>
-
-                  {form.is_recurring ? (
-                    <select
-                      name="day_of_week"
-                      value={form.day_of_week}
-                      onChange={handleChange}
-                      className="h-12 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
-                      required
+                <div className="max-h-32 overflow-y-auto border border-border rounded bg-background">
+                  {filteredProducts.map((p) => (
+                    <label
+                      key={p.id}
+                      className="flex items-center gap-2 p-2 hover:bg-muted cursor-pointer border-b last:border-0"
                     >
-                      <option value="">Select Day...</option>
-                      {dayNames.map((day, index) => (
-                        <option key={day} value={index}>
-                          {day}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3">
-                      <Input
-                        type="date"
-                        name="start_date"
-                        value={form.start_date}
-                        onChange={handleChange}
+                      <input
+                        type="checkbox"
+                        checked={form.product_ids.includes(p.id)}
+                        onChange={() => toggleProduct(p.id)}
+                        className="accent-primary"
                       />
-                      <Input
-                        type="date"
-                        name="end_date"
-                        value={form.end_date}
-                        onChange={handleChange}
-                      />
-                    </div>
-                  )}
+                      <span className="text-sm font-medium">
+                        {p.name}{" "}
+                        <span className="text-muted-foreground font-normal">
+                          ₹{p.price}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
 
-                <Button type="submit" className="uppercase tracking-[0.24em]">
-                  {form.id ? "Save Changes" : "Create Offer"}
-                </Button>
+                <button
+                  type="button"
+                  onClick={selectAllFiltered}
+                  className="mt-2 text-[10px] font-bold uppercase text-primary underline"
+                >
+                  Select All Visible
+                </button>
+              </div>
 
-                {form.id && (
-                  <Button
-                    type="button"
-                    onClick={() => setForm(initialFormState)}
-                    variant="ghost"
-                    className="uppercase tracking-[0.2em]"
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1">
+                  Scheduling
+                </label>
+
+                {form.is_recurring ? (
+                  <select
+                    name="day_of_week"
+                    value={form.day_of_week}
+                    onChange={handleChange}
+                    className="w-full p-3 border-2 border-muted bg-background rounded-lg outline-none"
+                    required
                   >
-                    Cancel Edit
-                  </Button>
+                    <option value="">Select Day...</option>
+                    {dayNames.map((d, i) => (
+                      <option key={i} value={i}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      name="start_date"
+                      value={form.start_date}
+                      onChange={handleChange}
+                      className="flex-1 p-3 border-2 border-muted bg-background rounded-lg text-sm"
+                    />
+                    <input
+                      type="date"
+                      name="end_date"
+                      value={form.end_date}
+                      onChange={handleChange}
+                      className="flex-1 p-3 border-2 border-muted bg-background rounded-lg text-sm"
+                    />
+                  </div>
                 )}
               </div>
-            </form>
-          </section>
 
-          <div className="space-y-4">
-            <h3 className="flex items-center gap-2 text-xl font-black uppercase tracking-tight text-primary">
-              Existing Campaigns
-              <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
-                {offers.length}
-              </span>
-            </h3>
+              <button className="w-full py-4 bg-primary text-primary-foreground font-black uppercase tracking-widest rounded-lg hover:opacity-90">
+                {form.id ? "Save Changes" : "Create Offer"}
+              </button>
 
-            {loading ? (
-              <div className="rounded-3xl border border-border bg-card p-10 text-center font-bold text-muted-foreground animate-pulse">
-                Fetching records...
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {filteredOffers.map((offer) => (
+              {form.id && (
+                <button
+                  type="button"
+                  onClick={() => setForm(initialFormState)}
+                  className="w-full text-xs font-bold uppercase text-muted-foreground"
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
+          </form>
+        </section>
+
+        {/* LIST */}
+        <div className="space-y-4">
+          <h3 className="font-black text-xl uppercase tracking-tight flex items-center gap-2">
+            Existing Campaigns
+            <span className="bg-muted px-2 py-1 rounded text-xs text-muted-foreground">
+              {offers.length}
+            </span>
+          </h3>
+
+          {loading ? (
+            <div className="p-10 text-center animate-pulse font-bold text-muted-foreground">
+              FETCHING RECORDS...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {offers
+                .filter((o) =>
+                  o.name.toLowerCase().includes(search.toLowerCase())
+                )
+                .map((offer) => (
                   <div
                     key={offer.id}
-                    className="flex min-w-0 flex-col gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5 lg:flex-row lg:items-center lg:justify-between"
+                    className="group bg-card border-2 border-border hover:border-primary rounded-xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center transition-all shadow-sm"
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <h4 className="break-words text-lg font-black uppercase text-foreground">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-1">
+                        <h4 className="font-black text-lg uppercase">
                           {offer.name}
                         </h4>
                         <span
-                          className={`inline-flex w-fit rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                             offer.is_active
                               ? "bg-primary text-primary-foreground"
-                              : "border border-border bg-background text-muted-foreground"
+                              : "bg-muted text-muted-foreground"
                           }`}
                         >
                           {offer.is_active ? "Active" : "Paused"}
                         </span>
                       </div>
 
-                      <p className="mb-3 break-words text-sm leading-6 text-muted-foreground">
+                      <p className="text-sm text-muted-foreground mb-3">
                         {offer.description || "No description provided."}
                       </p>
 
                       <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-bold text-primary">
+                        <span className="bg-primary text-primary-foreground px-3 py-1 rounded-md font-bold text-xs">
                           {offer.discount_value}
-                          {offer.discount_type === "percentage" ? "%" : " Rs"} OFF
+                          {offer.discount_type === "percentage" ? "%" : "₹"} OFF
                         </span>
-                        <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-bold uppercase text-muted-foreground">
+                        <span className="bg-muted border border-border px-3 py-1 rounded-md font-bold text-xs uppercase">
                           {offer.is_recurring
                             ? `Weekly: ${dayNames[offer.day_of_week]}`
-                            : `${offer.start_date || "Live"} - ${offer.end_date || "Open"}`}
+                            : `${offer.start_date || "Live"} - ${
+                                offer.end_date || "∞"
+                              }`}
                         </span>
                       </div>
                     </div>
 
-                    <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto">
-                      <Button
+                    <div className="mt-4 md:mt-0 flex gap-2">
+                      <button
                         onClick={() => handleEdit(offer)}
-                        variant="secondary"
-                        className="uppercase tracking-[0.2em]"
+                        className="p-2 px-4 rounded-lg border-2 border-muted hover:border-primary font-bold text-sm uppercase"
                       >
                         Edit
-                      </Button>
-                      <Button
+                      </button>
+                      <button
                         onClick={() => handleDelete(offer.id)}
-                        variant="danger"
-                        className="uppercase tracking-[0.2em]"
+                        className="p-2 px-4 rounded-lg bg-secondary text-secondary-foreground font-bold text-sm uppercase hover:opacity-90"
                       >
                         Delete
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
+            </div>
+          )}
+        </div>
+      </>
+    )}
+  </div>
+);
+
 };
 
 export default OfferManager;

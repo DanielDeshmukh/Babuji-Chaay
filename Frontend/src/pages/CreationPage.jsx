@@ -5,35 +5,36 @@ import InventoryManager from "@/components/InventoryManager";
 import OfferManager from "@/components/OfferManager";
 import RefundComponent from "@/components/RefundComponent";
 
-const shellCardClassName =
-  "min-w-0 rounded-3xl border border-border bg-card p-3 shadow-sm sm:p-4 lg:p-6";
-
 const CreationPage = () => {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-[#F8F5F0] flex flex-col">
+      {/* Header */}
       <Header />
 
-      <main className="px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-          <section className={shellCardClassName}>
+      {/* Main Content */}
+      <main className="flex-1 px-4 sm:px-8 py-6 sm:py-10">
+        <div className="max-w-5xl mx-auto">
+          
+          {/* Component for creating special number */}
+          <div className="bg-white shadow-lg my-1 rounded-2xl p-6 sm:p-8 border-[#E5E7EB]">
             <SpecialNumber />
-          </section>
-
-          <div className="flex flex-col gap-6">
-            <section className={`${shellCardClassName} w-full`}>
-              <InventoryManager />
-            </section>
-
-            <div className="flex w-full flex-col gap-6">
-              <section className={shellCardClassName}>
-                <OfferManager />
-              </section>
-
-              <section className={shellCardClassName}>
-                <RefundComponent />
-              </section>
-            </div>
           </div>
+
+          {/* Inventory Manager */}
+          <div className="bg-white shadow-lg rounded-2xl my-1 p-6 sm:p-8 border-[#E5E7EB]">
+            <InventoryManager />
+          </div>
+
+          {/* Offer Manager */}
+          <div className="bg-white shadow-lg rounded-2xl my-1 p-6 sm:p-8 border-[#E5E7EB]">
+            <OfferManager />
+          </div>
+
+          {/* Refund Component */}
+          <div className="bg-white shadow-lg rounded-2xl my-1 p-6 sm:p-8 border-[#E5E7EB]">
+            <RefundComponent />
+          </div>
+
         </div>
       </main>
     </div>

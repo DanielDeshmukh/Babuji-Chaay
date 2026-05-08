@@ -1,151 +1,231 @@
-import React, { useEffect, useState, useCallback } from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import supabase from "../lib/supabaseClient";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
+import useCurrentUser from "@/hooks/useCurrentUser";
 
+// ==========================
+// Notification Component
+// ==========================
+const Notification = ({ message, type, onClose }) => {
+  if (!message) return null;
+
+  const baseClasses =
+    "fixed bottom-5 right-5 p-4 rounded-lg shadow-xl text-white transition-opacity duration-300 z-50";
+  const typeClasses = type === "error" ? "bg-red-600" : "bg-green-600";
+
+  useEffect(() => {
+    const timer = setTimeout(() => onClose(), 4000);
+    return () => clearTimeout(timer);
+  }, [message, onClose]);
+
+  return (
+    <div className={`${baseClasses} ${typeClasses} flex items-center justify-between`}>
+      <span>{message}</span>
+      <button onClick={onClose} className="ml-4 font-bold">
+        &times;
+      </button>
+    </div>
+  );
+};
+
+// ==========================
+// MAIN INVENTORY COMPONENT
+// ==========================
 const Inventory = () => {
   const [products, setProducts] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [processingId, setProcessingId] = useState(null);
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
+  const [notification, setNotification] = useState(null);
 
-  // --- Data Fetching ---
-  const fetchInitialData = useCallback(async () => {
+  const { user, loading: userLoading } = useCurrentUser();
+
+  // ==========================
+  // Helpers
+  // ==========================
+  const getSessionToken = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || null;
+  };
+
+  const notify = (message, type) => {
+    setNotification({ message, type });
+  };
+
+  // ==========================
+  // FETCH ALL DATA (Products + Menu)
+  // ==========================
+  const fetchAll = async () => {
+    if (!user) return;
+
+    setLoading(true);
+
     try {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        console.error("User not authenticated");
-        return;
-      }
+      const token = await getSessionToken();
 
-      const [productsRes, menuRes] = await Promise.all([
-        supabase.functions.invoke("get-products", {
+      console.log("🔐 Using token:", token);
+
+      // ------------------------------
+      // GET PRODUCTS
+      // ------------------------------
+      const { data: prodResponse, error: prodError } =
+        await supabase.functions.invoke("get-products", {
           body: { user_id: user.id },
-        }),
-        supabase.functions.invoke("get-todays-menu", {
-          body: { user_id: user.id },
-        })
-      ]);
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      if (productsRes.error) throw productsRes.error;
-      if (menuRes.error) throw menuRes.error;
+      if (prodError) throw new Error(prodError.message);
+      setProducts(prodResponse?.products || []);
+      console.log("📦 Products:", prodResponse?.products?.length);
 
-      setProducts(productsRes.data?.products || []);
-      setMenuItems(menuRes.data?.todays_menu || []);
+      // ------------------------------
+      // GET TODAY’S MENU
+      // ------------------------------
+      const { data: menuResponse, error: menuError } =
+        await supabase.functions.invoke("get-todays-menu", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+      console.log("📥 Raw menu response:", menuResponse);
+
+      if (menuError) throw new Error(menuError.message);
+
+      setMenuItems(menuResponse?.todays_menu || []);
+      console.log("🍽️ Menu items:", menuResponse?.todays_menu?.length);
     } catch (err) {
-      console.error("Initialization error:", err);
+      console.error("❌ FetchAll Error:", err.message);
+      notify(`Failed to fetch: ${err.message}`, "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
+  // ==========================
+  // useEffect → initial load + realtime
+  // ==========================
   useEffect(() => {
-    fetchInitialData();
+    if (userLoading) return;
+    if (!user) return;
+
+    fetchAll();
 
     const channel = supabase
       .channel("realtime-todays-menu")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "todays_menu" },
-        () => fetchInitialData() 
+        {
+          event: "*",
+          schema: "public",
+          table: "todays_menu",
+        },
+        () => setTimeout(fetchAll, 200)
       )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [fetchInitialData]);
+  }, [user, userLoading]);
 
-  // --- Handlers ---
-  const handleAddToMenu = async (productId) => {
-    if (processingId) return;
-    setProcessingId(productId);
+  // ==========================
+  // MENU ACTIONS
+  // ==========================
+  const addToMenu = async (productId, productName) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data, error } = await supabase.functions.invoke("add-menu", {
-        body: { 
-          product_id: productId,
-          user_id: user?.id 
-        },
-      });
-      
-      if (error) throw error;
+      const token = await getSessionToken();
 
-      if (data?.menu_item) {
-        setMenuItems((prev) => [...prev, data.menu_item]);
-      }
+      const { data, error } = await supabase.functions.invoke("add-menu", {
+        body: { product_id: productId },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (error) throw new Error(error.message);
+
+      setMenuItems((prev) => [...prev, data.menu_item]);
+
+      notify(`Added ${productName} to menu!`, "success");
     } catch (err) {
-      console.error("Failed to add item:", err);
-    } finally {
-      setProcessingId(null);
+      console.error("❌ Add Menu Error:", err.message);
+      notify(err.message, "error");
     }
   };
 
-  const handleRemoveFromMenu = async (rowId, productId) => {
-    if (processingId) return;
-    setProcessingId(productId);
+  const removeFromMenu = async (rowId, productName) => {
     try {
+      const token = await getSessionToken();
+
       const { data, error } = await supabase.functions.invoke("remove-menu", {
         body: { id: rowId },
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
-      if (error) throw error;
 
-      if (data?.deleted_item) {
-        setMenuItems((prev) => prev.filter((m) => m.id !== data.deleted_item.id));
-      }
+      if (error) throw new Error(error.message);
+
+      setMenuItems((prev) => prev.filter((item) => item.id !== rowId));
+
+      notify(`Removed ${productName}`, "success");
     } catch (err) {
-      console.error("Failed to remove item:", err);
-    } finally {
-      setProcessingId(null);
+      console.error("❌ Remove Menu Error:", err.message);
+      notify(err.message, "error");
     }
   };
 
-  // --- Filtering ---
-  const categories = ["All", ...new Set(products.map((p) => p.category))];
-
-  const filteredProducts = products.filter((p) => {
-    const matchesCategory = activeCategory === "All" || p.category === activeCategory;
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0A1F12] flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-[#D4A23A] border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+  // ==========================
+  // UI RENDER
+  // ==========================
+  if (loading || userLoading) {
+    return <p className="text-center mt-6 text-foreground">Loading...</p>;
   }
 
+  const grouped = products.reduce((acc, p) => {
+    if (!acc[p.category]) acc[p.category] = [];
+    acc[p.category].push(p);
+    return acc;
+  }, {});
+
+  const categories = ["All", ...Object.keys(grouped)];
+
+  const filteredProducts = (
+    activeCategory === "All" ? products : grouped[activeCategory] || []
+  ).filter((p) => p.name?.toLowerCase().includes(search.toLowerCase()));
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#0A1F12] text-white font-sans">
+    <div className="min-h-screen flex flex-col bg-background text-foreground relative">
       <Header />
 
-      <main className="flex-grow px-6 py-8 max-w-[1400px] mx-auto w-full">
-        {/* Search Bar - Matches Screenshot Style */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full p-3 rounded-lg bg-[#0F2D1C] border border-[#1A4D30] text-[#E0E0E0] placeholder-[#4A6D58] focus:outline-none focus:border-[#D4A23A] transition-all"
-          />
-        </div>
+      <Notification
+        message={notification?.message}
+        type={notification?.type}
+        onClose={() => setNotification(null)}
+      />
 
-        {/* Categories - Matches Pill Style */}
-        <div className="flex gap-3 overflow-x-auto mb-10 pb-2 no-scrollbar">
+      {user && (
+        <div className="absolute top-2 right-2 bg-accent text-accent-foreground text-xs px-3 py-1 rounded-md shadow-lg">
+          Dev: {user.name || "Unknown"} (ID: {user.id})
+        </div>
+      )}
+
+      <main className="flex-grow px-4 py-6 max-w-7xl mx-auto w-full">
+        <input
+          type="text"
+          placeholder="Search products..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full p-3 mb-4 rounded-lg border border-border bg-card text-foreground"
+        />
+
+        {/* CATEGORY FILTER */}
+        <div className="flex gap-2 overflow-x-auto mb-6 pb-2">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+              className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors ${
                 activeCategory === cat
-                  ? "bg-[#D4A23A] text-[#0A1F12]"
-                  : "bg-[#0F2D1C] text-[#A0B0A6] hover:bg-[#1A4D30]"
+                  ? "bg-accent text-accent-foreground"
+                  : "bg-card hover:bg-muted"
               }`}
             >
               {cat}
@@ -153,49 +233,43 @@ const Inventory = () => {
           ))}
         </div>
 
-        {/* Products Grid - Matches 4-column Screenshot Layout */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {filteredProducts.map((product) => {
-            const menuItem = menuItems.find((m) => m.product_id === product.id);
-            const isProcessing = processingId === product.id;
+        {/* PRODUCTS GRID */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredProducts.map((p) => {
+            const exists = menuItems.find((m) => m.product_id === p.id);
 
             return (
               <div
-                key={product.id}
-                className="flex flex-col rounded-xl bg-[#0F2D1C] border border-[#1A4D30] overflow-hidden shadow-lg"
+                key={p.id}
+                className="border border-border rounded-lg p-4 bg-card shadow-sm hover:shadow-md flex flex-col justify-between"
               >
-                <div className="p-6 text-center flex-grow flex flex-col justify-center">
-                  <h3 className="text-lg font-bold text-white mb-2">
-                    {product.name}
-                  </h3>
-                  <p className="text-lg font-bold text-[#D4A23A]">
-                    ₹{product.price}
+                <div>
+                  <p className="font-semibold mb-1">{p.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Qty: {p.quantity}
                   </p>
+                  <p className="text-sm font-bold text-accent mt-1">₹{p.price}</p>
                 </div>
 
-                <div className="px-4 pb-4 mt-auto">
+                {exists ? (
                   <button
-                    disabled={isProcessing}
-                    onClick={() => menuItem ? handleRemoveFromMenu(menuItem.id, product.id) : handleAddToMenu(product.id)}
-                    className={`w-full py-2.5 rounded-lg text-sm font-bold transition-all ${
-                      menuItem 
-                      ? "bg-[#EF4444] text-white hover:bg-[#DC2626]" 
-                      : "bg-[#D4A23A] text-[#0A1F12] hover:bg-[#C2922F]"
-                    } disabled:opacity-50`}
+                    onClick={() => removeFromMenu(exists.id, p.name)}
+                    className="mt-3 w-full px-3 py-2 rounded-md text-sm bg-red-500 text-white"
                   >
-                    {isProcessing ? "..." : menuItem ? "Remove" : "Add"}
+                    Remove
                   </button>
-                </div>
+                ) : (
+                  <button
+                    onClick={() => addToMenu(p.id, p.name)}
+                    className="mt-3 w-full px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground"
+                  >
+                    Add
+                  </button>
+                )}
               </div>
             );
           })}
         </div>
-        
-        {filteredProducts.length === 0 && (
-          <div className="text-center py-20 text-[#4A6D58]">
-            No products found.
-          </div>
-        )}
       </main>
 
       <Footer />

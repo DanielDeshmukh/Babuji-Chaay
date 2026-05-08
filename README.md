@@ -127,11 +127,11 @@ The backend follows a modular **MVC structure** — managing business logic, dat
 
 | Layer | Technologies |
 |--------|---------------|
-| **Frontend** | React, Tailwind CSS, react-icons, lucide-react, recharts |
+| **Frontend** | React, Tailwind CSS, shadcn/ui, lucide-react, recharts |
 | **Backend** | Node.js, Express.js |
 | **Database** | Supabase (PostgreSQL via NeonDB) |
 | **Reports** | Backend-driven via controllers |
-| **Hosting** | Netlify / Render / Supabase |
+| **Hosting** | Vercel / Render / Supabase |
 | **Version Control** | Git & GitHub |
 
 ---
@@ -199,6 +199,40 @@ PORT=3000
 cd Frontend
 npm install
 npm run dev
+```
+
+### 3. Android APK Setup
+
+The project uses Capacitor for Android packaging.
+
+```bash
+cd Frontend
+npm install
+npm run apk:debug
+```
+
+That command will:
+
+- build the React app into `Frontend/dist`
+- sync the latest web assets into `Frontend/android`
+- generate a debug APK with Gradle
+
+The generated APK will be available at:
+
+```text
+Frontend/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+For a release build:
+
+```bash
+npm run apk:release
+```
+
+If you want to open the Android project in Android Studio instead:
+
+```bash
+npm run android
 ```
 
 ---

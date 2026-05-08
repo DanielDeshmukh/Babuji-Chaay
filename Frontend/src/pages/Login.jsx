@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import Logo from "../assets/Logo.png";
-import supabase from "../lib/supabaseClient";
-import { getAuthRedirectUrl } from "../lib/authRedirect";
+import supabase from "../lib/supabaseClient"; // ensure correct import
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
@@ -38,7 +37,7 @@ const Login = () => {
 
     // Using 'resetPasswordForEmail' is clearer for this flow
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: getAuthRedirectUrl(),
+      redirectTo: "http://localhost:5173/update-password", // You'll need a page for this
     });
     setLoading(false);
 
@@ -79,7 +78,7 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: getAuthRedirectUrl(),
+          redirectTo: "http://localhost:5173/splashscreen",
         },
       });
       if (error) throw error;

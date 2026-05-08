@@ -115,9 +115,7 @@ const LossDumpForm = ({ user, loading, setLoading, setMessage, products, closeFo
             type="button"
             onClick={() => setType("loss")}
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${
-              type === "loss"
-                ? "bg-destructive text-destructive-foreground shadow-lg"
-                : "hover:bg-muted text-muted-foreground"
+              type === "loss" ? "bg-destructive text-white shadow-lg" : "hover:bg-muted text-muted-foreground"
             }`}
           >
             <AlertCircle size={16} /> Loss (Theft/Damage)
@@ -126,9 +124,7 @@ const LossDumpForm = ({ user, loading, setLoading, setMessage, products, closeFo
             type="button"
             onClick={() => setType("dump")}
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${
-              type === "dump"
-                ? "bg-destructive text-destructive-foreground shadow-lg"
-                : "hover:bg-muted text-muted-foreground"
+              type === "dump" ? "bg-destructive text-white shadow-lg" : "hover:bg-muted text-muted-foreground"
             }`}
           >
             <Trash2 size={16} /> Dump (Waste/Expired)
@@ -138,7 +134,7 @@ const LossDumpForm = ({ user, loading, setLoading, setMessage, products, closeFo
         <button
           type="submit"
           disabled={!selectedProduct || loading}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-destructive px-4 py-3 font-bold text-destructive-foreground shadow-lg shadow-destructive/20 transition-all hover:opacity-90 disabled:opacity-50"
+          className="w-full py-3 bg-destructive text-white rounded-xl font-bold shadow-lg shadow-destructive/20 hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
         >
           {loading ? "Processing..." : "Commit Adjustment"}
         </button>
@@ -151,7 +147,7 @@ const LossDumpForm = ({ user, loading, setLoading, setMessage, products, closeFo
  * Main Profile Component
  */
 const Profile = () => {
-  const { user, profile, setProfile } = useUser();
+  const { user, profile } = useUser();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [showAuthModalForLossDump, setShowAuthModalForLossDump] = useState(false);
@@ -188,19 +184,18 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-[#F9FAFB] dark:bg-background transition-colors duration-300">
       <Header />
       
-      <main className="flex-grow px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
-        <div className="mx-auto max-w-screen-xl">
+      <main className="flex-grow py-12 px-4">
+        <div className="max-w-4xl mx-auto">
           {/* Main Profile Card */}
-          <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm md:p-10">
+          <div className="bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-border rounded-[2rem] p-6 md:p-12">
             {user ? (
               <>
                 <ProfileForm
                   profile={profile}
                   user={user}
-                  setProfile={setProfile}
                   loading={loading}
                   setLoading={setLoading}
                   setMessage={setMessage}

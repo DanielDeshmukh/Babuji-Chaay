@@ -2,6 +2,7 @@ import supabase from "@/lib/supabaseClient";
 
 const rawApiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE || "";
 const API_BASE_URL = rawApiBase.replace(/\/$/, "");
+const encodeDateParam = (value) => encodeURIComponent(String(value));
 
 const buildUrl = (path, params) => {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -17,6 +18,9 @@ const buildUrl = (path, params) => {
 
   return url.toString();
 };
+
+export const buildReportDateQuery = ({ start, end }) =>
+  `?start=${encodeDateParam(start)}&end=${encodeDateParam(end)}&t=${Date.now()}`;
 
 const getAccessToken = async () => {
   const {
@@ -93,6 +97,8 @@ export const getTransactions = (params) => apiRequest("/api/transactions", { par
 export const createTransaction = (payload) =>
   apiRequest("/api/transactions", { method: "POST", body: payload });
 export const getReports = (params) => apiRequest("/api/reports/generate", { params });
+export const getSalesSummary = (params) =>
+  apiRequest("/api/reports/sales-summary", { params });
 export const downloadSalesExport = (params) =>
   apiRequest("/api/exports/sales", { params, responseType: "blob" });
 

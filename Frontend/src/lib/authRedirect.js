@@ -1,7 +1,9 @@
 const FALLBACK_SITE_URL = (import.meta.env.VITE_SITE_URL || "").replace(/\/$/, "");
 const DEFAULT_REDIRECT_PATH = import.meta.env.VITE_AUTH_REDIRECT_PATH || "/splashscreen";
+const DESKTOP_REDIRECT_URL = "babujichaay://auth/callback";
 
 const WEB_PROTOCOLS = new Set(["http:", "https:"]);
+const APP_PROTOCOLS = new Set(["babujichaay:"]);
 
 const normalizeBaseUrl = (value) => value.replace(/\/$/, "");
 
@@ -31,6 +33,21 @@ export const getBrowserSafeOrigin = () => {
 };
 
 export const getAuthRedirectUrl = (path = DEFAULT_REDIRECT_PATH) => {
+  if (typeof window !== "undefined" && window.location.protocol === "file:") {
+    return DESKTOP_REDIRECT_URL;
+  }
+
+  if (FALLBACK_SITE_URL) {
+    try {
+      const parsed = new URL(FALLBACK_SITE_URL);
+      if (APP_PROTOCOLS.has(parsed.protocol)) {
+        return FALLBACK_SITE_URL;
+      }
+    } catch {
+      return FALLBACK_SITE_URL;
+    }
+  }
+
   const origin = getBrowserSafeOrigin();
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
 
