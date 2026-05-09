@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import supabase from "../lib/supabaseClient";
 import { FcGoogle } from "react-icons/fc";
 import Logo from "../assets/Logo.png";
+import { getAuthRedirectUrl } from "../lib/authRedirect";
+import { signInWithGoogle } from "../lib/mobileAuth";
 
 const Register = () => {
   const [form, setForm] = useState({ email: "", password: "", terms: false });
@@ -31,7 +33,7 @@ const Register = () => {
         email: form.email,
         password: form.password,
         options: {
-          emailRedirectTo: "http://localhost:5173/splashscreen",
+          emailRedirectTo: getAuthRedirectUrl("/splashscreen"),
         },
       });
 
@@ -49,16 +51,14 @@ const Register = () => {
   };
 
   const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setMessage("");
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: "http://localhost:5173/splashscreen",
-        },
-      });
-      if (error) throw error;
+      await signInWithGoogle();
     } catch (err) {
       setMessage(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -140,6 +140,7 @@ const Register = () => {
 
           <button
             onClick={handleGoogleSignIn}
+            disabled={loading}
             className="w-full flex items-center justify-center border border-border rounded-lg p-3 hover:bg-muted transition"
           >
             <FcGoogle size={20} className="mr-2" /> Continue with Google

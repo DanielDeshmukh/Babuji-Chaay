@@ -1,6 +1,6 @@
 const FALLBACK_SITE_URL = (import.meta.env.VITE_SITE_URL || "").replace(/\/$/, "");
 const DEFAULT_REDIRECT_PATH = import.meta.env.VITE_AUTH_REDIRECT_PATH || "/splashscreen";
-const DESKTOP_REDIRECT_URL = "babujichaay://auth/callback";
+export const MOBILE_AUTH_REDIRECT_URL = "babujichaay://auth/callback";
 
 const WEB_PROTOCOLS = new Set(["http:", "https:"]);
 const APP_PROTOCOLS = new Set(["babujichaay:"]);
@@ -34,7 +34,7 @@ export const getBrowserSafeOrigin = () => {
 
 export const getAuthRedirectUrl = (path = DEFAULT_REDIRECT_PATH) => {
   if (typeof window !== "undefined" && window.location.protocol === "file:") {
-    return DESKTOP_REDIRECT_URL;
+    return MOBILE_AUTH_REDIRECT_URL;
   }
 
   if (FALLBACK_SITE_URL) {

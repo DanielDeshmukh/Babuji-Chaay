@@ -1,21 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Logo from '../assets/Logo.png';
+import React, { useEffect, useState } from "react";
+import Logo from "../assets/Logo.png";
 
-const SplashScreen = () => {
-  const navigate = useNavigate();
+const SplashScreen = ({ message = "Restoring your session..." }) => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    setTimeout(() => setVisible(true), 100);
+    const enterTimer = setTimeout(() => setVisible(true), 100);
 
-    const timer = setTimeout(() => {
-      setVisible(false);
-      setTimeout(() => navigate('/home'), 500);
-    }, 4000);
-
-    return () => clearTimeout(timer);
-  }, [navigate]);
+    return () => clearTimeout(enterTimer);
+  }, []);
 
   return (
     <div
@@ -30,6 +23,9 @@ const SplashScreen = () => {
         alt="Splash Logo"
         className="w-60 h-60 rounded-full object-cover shadow-lg"
       />
+      <p className="absolute bottom-16 text-sm font-medium text-muted-foreground">
+        {message}
+      </p>
     </div>
   );
 };

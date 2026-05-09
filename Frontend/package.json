@@ -15,7 +15,9 @@
     "apk:release": "npm run cap:sync && powershell -ExecutionPolicy Bypass -File .\\scripts\\android-build.ps1 assembleRelease"
   },
   "dependencies": {
+    "@capacitor/app": "^8.0.2",
     "@capacitor/android": "^8.0.2",
+    "@capacitor/browser": "^8.0.2",
     "@capacitor/cli": "^8.0.2",
     "@capacitor/core": "^8.0.2",
     "@radix-ui/react-slot": "^1.2.3",

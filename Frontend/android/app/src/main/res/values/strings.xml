@@ -3,5 +3,5 @@
     <string name="app_name">Babuji Chaay</string>
     <string name="title_activity_main">Babuji Chaay</string>
     <string name="package_name">com.babuji.chaay</string>
-    <string name="custom_url_scheme">com.babuji.chaay</string>
+    <string name="custom_url_scheme">babujichaay</string>
 </resources>

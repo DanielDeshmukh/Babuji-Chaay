@@ -3,6 +3,8 @@ import { FcGoogle } from "react-icons/fc";
 import Logo from "../assets/Logo.png";
 import supabase from "../lib/supabaseClient"; // ensure correct import
 import { useNavigate } from "react-router-dom";
+import { getAuthRedirectUrl } from "../lib/authRedirect";
+import { signInWithGoogle } from "../lib/mobileAuth";
 
 const Login = () => {
   const [mode, setMode] = useState("login"); // "login" | "forgot" | "otp"
@@ -37,7 +39,7 @@ const Login = () => {
 
     // Using 'resetPasswordForEmail' is clearer for this flow
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: "http://localhost:5173/update-password", // You'll need a page for this
+      redirectTo: getAuthRedirectUrl("/update-password"), // You'll need a page for this
     });
     setLoading(false);
 
@@ -74,16 +76,13 @@ const Login = () => {
   // Added from Register.jsx
   const handleGoogleSignIn = async () => {
     setMessage(""); // Clear previous messages
+    setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: "http://localhost:5173/splashscreen",
-        },
-      });
-      if (error) throw error;
+      await signInWithGoogle();
     } catch (err) {
       setMessage(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -249,6 +248,7 @@ const Login = () => {
           {/* Aligned Google button */}
           <button
             onClick={handleGoogleSignIn}
+            disabled={loading}
             className="w-full flex items-center justify-center border border-border rounded-lg p-3 hover:bg-muted transition"
           >
             <FcGoogle size={20} className="mr-2" /> Continue with Google
