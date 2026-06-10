@@ -1,3 +1,5 @@
+⭐ If this POS system saved you from building inventory management from scratch — a star helps other devs find it. Takes 2 seconds.
+
 
 # Babuji Chaay  
 **Point of Sale & Café Management System**  
