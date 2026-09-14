@@ -42,8 +42,12 @@
   * {
     @apply border-border;
   }
+  html {
+    background-color: #1B3A2A;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: transparent;
   }
 }
 
