@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 40% 95%;
+    --foreground: 147 44% 15%;
+    --card: 40 40% 97%;
+    --card-foreground: 147 44% 15%;
+    --primary: 147 44% 21%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 45 74% 50%;
+    --secondary-foreground: 147 44% 15%;
+    --accent: 45 74% 50%;
+    --accent-foreground: 0 0% 100%;
+    --muted: 40 25% 85%;
+    --muted-foreground: 147 10% 35%;
+    --border: 40 25% 80%;
+    --ring: 147 44% 21%;
+  }
+
+  .dark {
+    --background: 147 44% 10%;
+    --foreground: 40 40% 97%;
+    --card: 147 44% 15%;
+    --card-foreground: 40 40% 97%;
+    --primary: 45 74% 50%;
+    --primary-foreground: 147 44% 10%;
+    --secondary: 147 20% 25%;
+    --secondary-foreground: 45 74% 85%;
+    --accent: 45 74% 50%;
+    --accent-foreground: 147 44% 10%;
+    --muted: 147 44% 20%;
+    --muted-foreground: 40 40% 90%;
+    --border: 147 44% 25%;
+    --ring: 45 74% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Hide scrollbar for clean POS UI */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Print styles for receipt */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-receipt,
+  .print-receipt * {
+    visibility: visible;
+  }
+  .print-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+  }
+}
