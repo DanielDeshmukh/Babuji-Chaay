@@ -6,7 +6,7 @@ import ExportData from "@/components/ExportData";
 
 export default function SettingsPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+    <div className="min-h-screen flex flex-col text-foreground transition-colors duration-300">
       <Header />
 
       <main className="flex-grow p-8">

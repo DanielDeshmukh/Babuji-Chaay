@@ -230,7 +230,7 @@ function Dashboard() {
     "px-3 py-2 rounded-md bg-card text-card-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary w-full text-sm";
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+    <div className="min-h-screen flex flex-col transition-colors duration-300">
       <Header />
       <main className="flex-1 p-6">
         <div className="flex items-center justify-between mb-6">

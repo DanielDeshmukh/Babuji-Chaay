@@ -8,7 +8,7 @@ import RefundComponent from "@/components/RefundComponent";
 
 export default function CreatePage() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <Header />
 
       <main className="flex-1 px-4 sm:px-8 py-6 sm:py-10">

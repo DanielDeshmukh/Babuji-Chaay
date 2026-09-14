@@ -102,7 +102,7 @@ export default function InventoryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <div className="min-h-screen flex flex-col text-foreground">
         <Header />
         <main className="flex-grow flex items-center justify-center">
           <p>Loading...</p>
@@ -133,7 +133,7 @@ export default function InventoryPage() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground relative">
+    <div className="min-h-screen flex flex-col text-foreground relative">
       <Header />
 
       {notification && (

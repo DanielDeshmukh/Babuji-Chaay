@@ -243,7 +243,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background transition-colors duration-300">
+    <div className="min-h-screen flex flex-col transition-colors duration-300">
       <Header />
 
       <main className="flex-grow py-12 px-4">

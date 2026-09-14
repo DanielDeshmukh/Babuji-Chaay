@@ -338,7 +338,7 @@ export default function MenuPage() {
 
   if (loading)
     return (
-      <div className="min-h-screen flex flex-col bg-background">
+      <div className="min-h-screen flex flex-col">
         <Header />
         <main className="flex-grow flex items-center justify-center">
           <p>Loading menu...</p>
@@ -348,7 +348,7 @@ export default function MenuPage() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col bg-background transition-all ${
+      className={`min-h-screen flex flex-col transition-all ${
         isSpecialActive ? "animate-pulse" : ""
       }`}
     >
