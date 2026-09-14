@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/manifest.json", "/favicon.ico", "/icon.png", "/apple-touch-icon.png"];
+const PUBLIC_PATHS = ["/login", "/api/auth/login", "/manifest.json", "/favicon.ico", "/icon.png", "/apple-touch-icon.png", "/sw.js"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith("/_next") || pathname.startsWith("/uploads")) {
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith("/_next") || pathname.startsWith("/uploads") || pathname.endsWith(".png") || pathname.endsWith(".svg") || pathname.endsWith(".ico") || pathname.endsWith(".js") || pathname.endsWith(".webmanifest")) {
     return NextResponse.next();
   }
 

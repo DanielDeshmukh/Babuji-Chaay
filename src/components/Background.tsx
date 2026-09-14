@@ -4,13 +4,15 @@ import { SlCup } from "react-icons/sl";
 import { CiCoffeeCup, CiFries } from "react-icons/ci";
 import { PiHamburgerBold } from "react-icons/pi";
 import { VscCoffee } from "react-icons/vsc";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 
 const iconList = [SlCup, CiCoffeeCup, PiHamburgerBold, CiFries, VscCoffee];
 
 export default function Background() {
-  const icons = useMemo(() => {
-    return Array.from({ length: 25 }).map((_, index) => {
+  const [icons, setIcons] = useState<React.ReactNode[]>([]);
+
+  useEffect(() => {
+    const randomIcons = Array.from({ length: 25 }).map((_, index) => {
       const Icon = iconList[Math.floor(Math.random() * iconList.length)];
       return (
         <div
@@ -32,6 +34,7 @@ export default function Background() {
         </div>
       );
     });
+    setIcons(randomIcons);
   }, []);
 
   return (

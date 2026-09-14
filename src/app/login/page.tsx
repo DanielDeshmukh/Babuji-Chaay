@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -43,13 +42,10 @@ export default function LoginPage() {
       <div className="w-full lg:w-1/2 flex flex-col justify-center items-center px-6 sm:px-10 py-8 min-h-screen">
         <div className="w-full max-w-md">
           <div className="flex items-center justify-center mb-6 lg:hidden">
-            <Image
+            <img
               src="/Logo.png"
               alt="Babuji Chaay"
-              width={112}
-              height={112}
               className="h-28 w-28 rounded-full object-contain"
-              priority
             />
           </div>
 
@@ -97,13 +93,10 @@ export default function LoginPage() {
 
       {/* Right Section - Branding */}
       <div className="hidden lg:flex w-1/2 bg-primary text-primary-foreground flex-col items-center justify-center">
-        <Image
+        <img
           src="/Logo.png"
           alt="Babuji Chaay"
-          width={224}
-          height={224}
           className="h-56 w-56 object-contain drop-shadow-xl"
-          priority
         />
       </div>
     </div>
