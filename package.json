@@ -13,7 +13,6 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@ducanh2912/next-pwa": "^10.0.2",
     "@libsql/client": "^0.14.0",
     "@radix-ui/react-slot": "^1.2.3",
     "chart.js": "^4.5.1",

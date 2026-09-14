@@ -1,17 +1,14 @@
-const withPWA = require("@ducanh2912/next-pwa").default;
-
-const pwaConfig = {
-  dest: "public",
-  register: true,
-  skipWaiting: true,
-  disable: process.env.NODE_ENV === "development",
-};
-
-module.exports = withPWA(pwaConfig)({
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
     },
   },
-});
+  images: {
+    unoptimized: true,
+  },
+};
+
+module.exports = nextConfig;
