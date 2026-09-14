@@ -36,8 +36,10 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen text-foreground antialiased">
         <Background />
-        <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}` }} />
-        {children}
+        <div className="relative z-10">
+          <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}` }} />
+          {children}
+        </div>
       </body>
     </html>
   );

@@ -47,7 +47,6 @@ export default function Background() {
         width: "100vw",
         backgroundColor: "#1B3A2A",
         overflow: "hidden",
-        zIndex: -1,
       }}
     >
       {icons}
