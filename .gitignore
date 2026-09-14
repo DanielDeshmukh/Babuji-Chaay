@@ -2,6 +2,10 @@
 node_modules/
 **/node_modules/
 
+# Legacy dirs (superseded by src/)
+Backend/
+Frontend/
+
 # Next.js
 .next/
 out/
