@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import Background from "@/components/Background";
 
 export const metadata: Metadata = {
   title: "Babuji Chaay",
@@ -34,6 +35,7 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="512x512" href="/icon-512x512.png" />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
+        <Background />
         <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}` }} />
         {children}
       </body>
