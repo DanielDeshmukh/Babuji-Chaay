@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+  test-api:
+    needs: build
+    runs-on: ubuntu-latest
+    services:
+      none: {}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Start dev server and test API
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          npm run dev &
+          sleep 8
+
+          echo "=== Health Check ==="
+          HEALTH=$(curl -s http://localhost:3000/api/health)
+          echo "$HEALTH"
+          echo "$HEALTH" | grep -q '"status":"healthy"' && echo "PASS: Health" || echo "FAIL: Health"
+
+          echo "=== Login ==="
+          LOGIN=$(curl -s -c cookies.txt -b cookies.txt -X POST http://localhost:3000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"babuji2024"}')
+          echo "$LOGIN"
+          echo "$LOGIN" | grep -q '"success":true' && echo "PASS: Login" || echo "FAIL: Login"
+
+          echo "=== Session ==="
+          SESSION=$(curl -s -b cookies.txt http://localhost:3000/api/auth/session)
+          echo "$SESSION"
+          echo "$SESSION" | grep -q '"loggedIn":true' && echo "PASS: Session" || echo "FAIL: Session"
+
+          echo "=== Products ==="
+          PRODUCTS=$(curl -s -b cookies.txt http://localhost:3000/api/products)
+          echo "$PRODUCTS" | grep -q '"products"' && echo "PASS: Products" || echo "FAIL: Products"
+
+          echo "=== Today's Menu ==="
+          MENU=$(curl -s -b cookies.txt http://localhost:3000/api/todays-menu)
+          echo "$MENU" | grep -q '"todays_menu"' && echo "PASS: TodaysMenu" || echo "FAIL: TodaysMenu"
+
+          echo "=== Summary ==="
+          SUMMARY=$(curl -s -b cookies.txt http://localhost:3000/api/summary)
+          echo "$SUMMARY" | grep -q '"summary"' && echo "PASS: Summary" || echo "FAIL: Summary"
+
+          echo "=== Create Transaction ==="
+          TXN=$(curl -s -b cookies.txt -X POST http://localhost:3000/api/transactions \
+            -H "Content-Type: application/json" \
+            -d '{"total_amount":100,"discount":0,"cash_paid":100,"upi_paid":0,"items":[{"product_id":1,"quantity":2,"unit_price":50}]}')
+          echo "$TXN"
+          echo "$TXN" | grep -q '"sale"' && echo "PASS: Transaction" || echo "FAIL: Transaction"
+
+          echo "=== Offers ==="
+          OFFERS=$(curl -s -b cookies.txt http://localhost:3000/api/offers)
+          echo "$OFFERS" | grep -q '"offers"' && echo "PASS: Offers" || echo "FAIL: Offers"
+
+          echo "=== Special Numbers ==="
+          SPECIAL=$(curl -s -b cookies.txt http://localhost:3000/api/special-numbers)
+          echo "$SPECIAL" | grep -q '"special_numbers"' && echo "PASS: SpecialNumbers" || echo "FAIL: SpecialNumbers"
+
+          echo "=== Profile ==="
+          PROFILE=$(curl -s -b cookies.txt http://localhost:3000/api/profile)
+          echo "$PROFILE" | grep -q '"profile"' && echo "PASS: Profile" || echo "FAIL: Profile"
+
+          kill %1 2>/dev/null || true

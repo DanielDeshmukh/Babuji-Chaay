@@ -1,31 +1,39 @@
 import { getSession } from "./auth";
 import { cookies } from "next/headers";
-import db from "./db";
-import { profiles } from "./db/schema";
-import { eq } from "drizzle-orm";
+import { createClient } from "@libsql/client";
 
 const ADMIN_USER_ID = "admin";
+
+function getClient() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN!,
+  });
+}
 
 export async function getAdminUserId(): Promise<string> {
   return ADMIN_USER_ID;
 }
 
 export async function getOrCreateAdminProfile() {
-  const existing = await db.query.profiles.findFirst({
-    where: eq(profiles.id, ADMIN_USER_ID),
+  const client = getClient();
+  const existing = await client.execute({
+    sql: "SELECT * FROM profiles WHERE id = ?",
+    args: [ADMIN_USER_ID],
   });
 
-  if (existing) return existing;
+  if (existing.rows.length > 0) return existing.rows[0];
 
-  await db.insert(profiles).values({
-    id: ADMIN_USER_ID,
-    fullName: "Admin",
-    pin: "1234",
+  await client.execute({
+    sql: "INSERT INTO profiles (id, full_name, pin) VALUES (?, ?, ?)",
+    args: [ADMIN_USER_ID, "Admin", "1234"],
   });
 
-  return db.query.profiles.findFirst({
-    where: eq(profiles.id, ADMIN_USER_ID),
+  const result = await client.execute({
+    sql: "SELECT * FROM profiles WHERE id = ?",
+    args: [ADMIN_USER_ID],
   });
+  return result.rows[0];
 }
 
 export async function requireSession() {

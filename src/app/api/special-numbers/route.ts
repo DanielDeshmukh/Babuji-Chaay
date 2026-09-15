@@ -1,20 +1,23 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
-import { specialNumbers } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { createClient } from "@libsql/client";
 import { requireSession } from "@/lib/admin";
+
+function getClient() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN!,
+  });
+}
 
 export async function GET() {
   try {
     await requireSession();
-    const rows = await db.query.specialNumbers.findMany({
-      orderBy: [desc(specialNumbers.id)],
-      limit: 30,
-    });
-    return NextResponse.json({ special_numbers: rows });
+    const client = getClient();
+    const result = await client.execute("SELECT * FROM special_numbers ORDER BY id DESC LIMIT 30");
+    return NextResponse.json({ special_numbers: result.rows });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 401 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -23,19 +26,14 @@ export async function POST(req: Request) {
     await requireSession();
     const body = await req.json();
     const { number, date } = body;
+    const client = getClient();
 
-    // Upsert: delete existing for this date+user, then insert
     const today = date || new Date().toISOString().split("T")[0];
+    await client.execute({ sql: "DELETE FROM special_numbers WHERE date = ?", args: [today] });
 
-    // Delete existing for today
-    await db.delete(specialNumbers).where(
-      eq(specialNumbers.date, today)
-    );
-
-    await db.insert(specialNumbers).values({
-      number,
-      date: today,
-      userId: "admin",
+    await client.execute({
+      sql: "INSERT INTO special_numbers (number, date, user_id) VALUES (?, ?, ?)",
+      args: [number, today, "admin"],
     });
 
     return NextResponse.json({ special_number: { number, date: today } });

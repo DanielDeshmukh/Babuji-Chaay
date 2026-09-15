@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
-import { todaysMenu, products } from "@/lib/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { createClient } from "@libsql/client";
 import { requireSession } from "@/lib/admin";
+
+function getClient() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN!,
+  });
+}
 
 export async function GET() {
   try {
     await requireSession();
-    const rows = await db.query.todaysMenu.findMany({
-      orderBy: [asc(todaysMenu.name)],
-    });
-    return NextResponse.json({ todays_menu: rows });
+    const client = getClient();
+    const result = await client.execute("SELECT * FROM todays_menu ORDER BY name ASC");
+    return NextResponse.json({ todays_menu: result.rows });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 401 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -22,23 +26,22 @@ export async function POST(req: Request) {
     await requireSession();
     const body = await req.json();
     const { product_id } = body;
+    const client = getClient();
 
-    const product = await db.query.products.findFirst({
-      where: eq(products.id, product_id),
+    const product = await client.execute({
+      sql: "SELECT * FROM products WHERE id = ?",
+      args: [product_id],
     });
 
-    if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    if (!product.rows.length) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    const p = product.rows[0];
 
-    await db.insert(todaysMenu).values({
-      productId: product.id,
-      name: product.name,
-      category: product.category,
-      price: product.price,
-      quantity: product.quantity,
-      isAvailable: true,
+    await client.execute({
+      sql: "INSERT INTO todays_menu (product_id, name, category, price, quantity, is_available) VALUES (?, ?, ?, ?, ?, ?)",
+      args: [p.id, p.name, p.category, p.price, p.quantity, 1],
     });
 
-    return NextResponse.json({ menu_item: { product_id: product.id, name: product.name } });
+    return NextResponse.json({ menu_item: { product_id: p.id, name: p.name } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -52,7 +55,8 @@ export async function DELETE(req: Request) {
     const { id } = body;
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
-    await db.delete(todaysMenu).where(eq(todaysMenu.id, id));
+    const client = getClient();
+    await client.execute({ sql: "DELETE FROM todays_menu WHERE id = ?", args: [id] });
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

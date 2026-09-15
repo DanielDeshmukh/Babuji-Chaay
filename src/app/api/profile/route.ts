@@ -1,19 +1,26 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
-import { profiles } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { createClient } from "@libsql/client";
 import { requireSession } from "@/lib/admin";
+
+function getClient() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN!,
+  });
+}
 
 export async function GET() {
   try {
     await requireSession();
-    const profile = await db.query.profiles.findFirst({
-      where: eq(profiles.id, "admin"),
+    const client = getClient();
+    const result = await client.execute({
+      sql: "SELECT * FROM profiles WHERE id = ?",
+      args: ["admin"],
     });
-    return NextResponse.json({ profile: profile || null });
+    return NextResponse.json({ profile: result.rows[0] || null });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 401 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -21,13 +28,12 @@ export async function PUT(req: Request) {
   try {
     await requireSession();
     const body = await req.json();
+    const client = getClient();
 
-    await db.update(profiles).set({
-      fullName: body.full_name,
-      pin: body.pin || null,
-      avatarUrl: body.avatar_url,
-      updatedAt: new Date().toISOString(),
-    }).where(eq(profiles.id, "admin"));
+    await client.execute({
+      sql: "UPDATE profiles SET full_name = ?, avatar_url = ?, pin = ?, updated_at = datetime('now') WHERE id = ?",
+      args: [body.fullName, body.avatarUrl || null, body.pin, "admin"],
+    });
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

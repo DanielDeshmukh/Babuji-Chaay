@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@libsql/client";
 import { requireSession } from "@/lib/admin";
-import db from "@/lib/db";
-import { transactions, transactionItems, products } from "@/lib/db/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+
+function getClient() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN!,
+  });
+}
 
 export async function GET(req: Request) {
   try {
@@ -10,51 +15,25 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const start = searchParams.get("start");
     const end = searchParams.get("end");
+    const client = getClient();
 
-    if (!start || !end) return NextResponse.json({ error: "Missing date params" }, { status: 400 });
+    const startFixed = start ? start.replace("T", " ") : "";
+    const endFixed = end ? end.replace("T", " ") : "";
 
-    const rows = await db.query.transactions.findMany({
-      where: and(
-        gte(transactions.createdAt, start),
-        lte(transactions.createdAt, end),
-        eq(transactions.transactionType, "SALE")
-      ),
-    });
-
-    // Build report data
-    const reportItems: Array<{
-      bill_no: number;
-      date: string;
-      product: string;
-      qty: number;
-      unit_price: number;
-      total: number;
-      payment_method: string;
-    }> = [];
-
-    for (const txn of rows) {
-      const items = await db.query.transactionItems.findMany({
-        where: eq(transactionItems.transactionId, txn.id),
+    let txnResult;
+    if (startFixed && endFixed) {
+      txnResult = await client.execute({
+        sql: "SELECT t.*, ti.product_id, ti.quantity, ti.unit_price, ti.price as item_price, p.name as product_name FROM transactions t LEFT JOIN transaction_items ti ON t.id = ti.transaction_id LEFT JOIN products p ON ti.product_id = p.id WHERE t.created_at >= ? AND t.created_at <= ? ORDER BY t.created_at DESC",
+        args: [startFixed, endFixed],
       });
-
-      for (const item of items) {
-        const product = await db.query.products.findFirst({
-          where: eq(products.id, item.productId),
-        });
-
-        reportItems.push({
-          bill_no: txn.dailyBillNo,
-          date: txn.createdAt,
-          product: product?.name || "Unknown",
-          qty: item.quantity,
-          unit_price: item.unitPrice,
-          total: item.price || 0,
-          payment_method: txn.upiPaid > 0 ? "UPI" : "CASH",
-        });
-      }
+    } else {
+      txnResult = await client.execute({
+        sql: "SELECT t.*, ti.product_id, ti.quantity, ti.unit_price, ti.price as item_price, p.name as product_name FROM transactions t LEFT JOIN transaction_items ti ON t.id = ti.transaction_id LEFT JOIN products p ON ti.product_id = p.id ORDER BY t.created_at DESC",
+        args: [],
+      });
     }
 
-    return NextResponse.json({ report: reportItems });
+    return NextResponse.json({ report: txnResult.rows });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

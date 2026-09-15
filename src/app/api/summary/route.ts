@@ -1,44 +1,37 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
-import { transactions, lossDumpLogs } from "@/lib/db/schema";
-import { gte, lte, sql } from "drizzle-orm";
+import { createClient } from "@libsql/client";
 import { requireSession } from "@/lib/admin";
+
+function getClient() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN!,
+  });
+}
 
 export async function GET() {
   try {
     await requireSession();
+    const client = getClient();
 
-    // Get all transactions grouped by date
-    const txRows = await db
-      .select({
-        sales_date: sql<string>`date(${transactions.createdAt})`,
-        total_sales: sql<number>`sum(case when ${transactions.transactionType} = 'SALE' then ${transactions.totalAmount} else 0 end)`,
-      })
-      .from(transactions)
-      .groupBy(sql`date(${transactions.createdAt})`)
-      .orderBy(sql`date(${transactions.createdAt})`);
+    const txRows = await client.execute(
+      "SELECT date(created_at) as sales_date, sum(case when transaction_type = 'SALE' then total_amount else 0 end) as total_sales FROM transactions GROUP BY date(created_at) ORDER BY date(created_at)"
+    );
 
-    // Get loss/dump logs grouped by date
-    const ldRows = await db
-      .select({
-        log_date: sql<string>`date(${lossDumpLogs.createdAt})`,
-        total_loss: sql<number>`sum(case when ${lossDumpLogs.type} = 'loss' then ${lossDumpLogs.priceAtTime} * ${lossDumpLogs.quantity} else 0 end)`,
-        total_dump: sql<number>`sum(case when ${lossDumpLogs.type} = 'dump' then ${lossDumpLogs.priceAtTime} * ${lossDumpLogs.quantity} else 0 end)`,
-      })
-      .from(lossDumpLogs)
-      .groupBy(sql`date(${lossDumpLogs.createdAt})`);
+    const ldRows = await client.execute(
+      "SELECT date(created_at) as log_date, sum(case when type = 'loss' then price_at_time * quantity else 0 end) as total_loss, sum(case when type = 'dump' then price_at_time * quantity else 0 end) as total_dump FROM loss_dump_logs GROUP BY date(created_at)"
+    );
 
-    // Merge loss/dump into sales data
     const lossMap = new Map<string, { total_loss: number; total_dump: number }>();
-    for (const ld of ldRows) {
-      lossMap.set(ld.log_date, { total_loss: ld.total_loss || 0, total_dump: ld.total_dump || 0 });
+    for (const ld of ldRows.rows) {
+      lossMap.set(String(ld.log_date), { total_loss: Number(ld.total_loss) || 0, total_dump: Number(ld.total_dump) || 0 });
     }
 
-    const merged = txRows.map((r) => {
-      const ld = lossMap.get(r.sales_date);
+    const merged = txRows.rows.map((r) => {
+      const ld = lossMap.get(String(r.sales_date));
       return {
         sales_date: r.sales_date,
-        total_sales: r.total_sales || 0,
+        total_sales: Number(r.total_sales) || 0,
         total_loss: ld?.total_loss || 0,
         total_dump: ld?.total_dump || 0,
       };
@@ -46,6 +39,7 @@ export async function GET() {
 
     return NextResponse.json({ summary: merged });
   } catch (err: unknown) {
+    console.error("Summary error:", err);
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
