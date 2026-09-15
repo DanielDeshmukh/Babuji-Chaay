@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
-import { transactions, transactionItems } from "@/lib/db/schema";
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { createClient } from "@libsql/client";
 import { requireSession } from "@/lib/admin";
+
+function getClient() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN!,
+  });
+}
 
 export async function GET(req: Request) {
   try {
@@ -10,26 +15,24 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const start = searchParams.get("start");
     const end = searchParams.get("end");
+    const client = getClient();
 
-    let rows;
+    let result;
     if (start && end) {
-      const startFixed = start.replace("T", " ");
-      const endFixed = end.replace("T", " ");
-      rows = await db.query.transactions.findMany({
-        where: and(
-          gte(transactions.createdAt, startFixed),
-          lte(transactions.createdAt, endFixed)
-        ),
-        orderBy: [desc(transactions.createdAt)],
+      const s = start.replace("T", " ");
+      const e = end.replace("T", " ");
+      result = await client.execute({
+        sql: "SELECT * FROM transactions WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC",
+        args: [s, e],
       });
     } else {
-      rows = await db.query.transactions.findMany({
-        orderBy: [desc(transactions.createdAt)],
-        limit: 100,
+      result = await client.execute({
+        sql: "SELECT * FROM transactions ORDER BY created_at DESC LIMIT 100",
+        args: [],
       });
     }
 
-    return NextResponse.json({ transactions: rows });
+    return NextResponse.json({ transactions: result.rows });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -40,54 +43,52 @@ export async function POST(req: Request) {
   try {
     await requireSession();
     const body = await req.json();
+    const client = getClient();
 
     const today = new Date().toISOString().split("T")[0];
     const todayStart = `${today} 00:00:00`;
     const todayEnd = `${today} 23:59:59`;
 
-    const countResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(transactions)
-      .where(
-        and(
-          gte(transactions.createdAt, todayStart),
-          lte(transactions.createdAt, todayEnd),
-          eq(transactions.transactionType, "SALE")
-        )
-      );
+    const countResult = await client.execute({
+      sql: "SELECT count(*) as count FROM transactions WHERE created_at >= ? AND created_at <= ? AND transaction_type = ?",
+      args: [todayStart, todayEnd, "SALE"],
+    });
 
-    const dailyBillNo = (countResult[0]?.count || 0) + 1;
-
+    const dailyBillNo = Number(countResult.rows[0]?.count || 0) + 1;
     const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-    await db.insert(transactions).values({
-      id: transactionId,
-      userId: "admin",
-      transactionType: "SALE",
-      dailyBillNo,
-      totalAmount: body.total_amount,
-      discount: body.discount || 0,
-      cashPaid: body.cash_paid || 0,
-      upiPaid: body.upi_paid || 0,
+    await client.execute({
+      sql: "INSERT INTO transactions (id, user_id, transaction_type, daily_bill_no, total_amount, discount, cash_paid, upi_paid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      args: [
+        transactionId,
+        "admin",
+        "SALE",
+        dailyBillNo,
+        body.total_amount || 0,
+        body.discount || 0,
+        body.cash_paid || 0,
+        body.upi_paid || 0,
+      ],
     });
 
     if (body.items?.length) {
-      const items = body.items.map((item: { product_id: number; quantity: number; unit_price: number }) => ({
-        transactionId,
-        productId: item.product_id,
-        userId: "admin",
-        quantity: item.quantity,
-        unitPrice: item.unit_price,
-        price: item.unit_price * item.quantity,
-        itemType: "SALE",
-      }));
-
-      for (const item of items) {
-        await db.insert(transactionItems).values(item);
+      for (const item of body.items) {
+        await client.execute({
+          sql: "INSERT INTO transaction_items (transaction_id, product_id, user_id, quantity, unit_price, price, item_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          args: [
+            transactionId,
+            item.product_id,
+            "admin",
+            item.quantity,
+            item.unit_price,
+            item.unit_price * item.quantity,
+            "SALE",
+          ],
+        });
       }
     }
 
-    return NextResponse.json({ sale: { id: transactionId, dailyBillNo } });
+    return NextResponse.json({ sale: { id: transactionId, daily_bill_no: dailyBillNo } });
   } catch (err: unknown) {
     console.error("Transaction POST error:", err);
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -99,9 +100,18 @@ export async function PUT(req: Request) {
   try {
     await requireSession();
     const body = await req.json();
+    const client = getClient();
     const { id, ...fields } = body;
 
-    await db.update(transactions).set(fields).where(eq(transactions.id, id));
+    const sets = Object.keys(fields)
+      .map((k) => `${k} = ?`)
+      .join(", ");
+    const vals = Object.values(fields);
+
+    await client.execute({
+      sql: `UPDATE transactions SET ${sets} WHERE id = ?`,
+      args: [...vals, id],
+    });
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
