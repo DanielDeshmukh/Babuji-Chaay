@@ -481,6 +481,32 @@ function Dashboard() {
                       </button>
                     </div>
 
+                    <div className="space-y-2 pt-2 border-t">
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+                        Invoice by Bill Number
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          value={selectedDailyBillNo}
+                          onChange={(e) =>
+                            setSelectedDailyBillNo(e.target.value)
+                          }
+                          placeholder="Bill #"
+                          className="flex-1 px-3 py-2 bg-background border rounded-lg text-sm"
+                        />
+                        <button
+                          onClick={() =>
+                            handleViewTransactions("invoice")
+                          }
+                          disabled={!selectedDailyBillNo}
+                          className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold disabled:opacity-50"
+                        >
+                          Lookup
+                        </button>
+                      </div>
+                    </div>
+
                     <button
                       onClick={() =>
                         setShowTransactionOptions(false)
