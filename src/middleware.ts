@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/manifest.json", "/favicon.ico", "/icon.png", "/apple-touch-icon.png", "/sw.js"];
+const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/health", "/manifest.json", "/favicon.ico", "/icon.png", "/apple-touch-icon.png", "/sw.js"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
