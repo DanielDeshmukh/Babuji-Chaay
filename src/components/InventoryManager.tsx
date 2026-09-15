@@ -6,6 +6,7 @@ interface Product {
   id: number;
   name: string;
   category: string;
+  description: string;
   quantity: number;
   price: number;
 }
@@ -20,6 +21,7 @@ const InventoryManager = () => {
     id: null as number | null,
     name: "",
     category: "",
+    description: "",
     quantity: 0,
     price: 0,
   });
@@ -58,6 +60,7 @@ const InventoryManager = () => {
         id: form.id,
         name: form.name,
         category: form.category || "Uncategorized",
+        description: form.description || "",
         quantity: form.quantity,
         price: form.price,
       };
@@ -70,7 +73,7 @@ const InventoryManager = () => {
 
       if (!res.ok) throw new Error("Failed to save");
 
-      setForm({ id: null, name: "", category: "", quantity: 0, price: 0 });
+      setForm({ id: null, name: "", category: "", description: "", quantity: 0, price: 0 });
       fetchProducts();
       setMessage("Inventory updated successfully.");
       setTimeout(() => setMessage(""), 3000);
@@ -162,6 +165,17 @@ const InventoryManager = () => {
                 onChange={handleChange}
                 placeholder="Category"
                 className="w-full p-3 border-2 border-muted bg-background rounded outline-none"
+              />
+
+              <textarea
+                name="description"
+                value={form.description}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, description: e.target.value }))
+                }
+                placeholder="Description (optional)"
+                rows={2}
+                className="w-full p-3 border-2 border-muted bg-background rounded outline-none text-sm resize-none"
               />
 
               <div className="grid grid-cols-2 gap-4">
