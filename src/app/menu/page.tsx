@@ -64,6 +64,11 @@ const calculateOfferDiscount = (
         discountAmount = free * item.price;
       }
 
+      if (offer.discount_type === "fixed") {
+        const fixedAmt = Number(offer.discount_value) || 0;
+        discountAmount = Math.min(fixedAmt, item.price * item.quantity);
+      }
+
       if (discountAmount > best.discount) {
         best = {
           discount: discountAmount,
