@@ -30,9 +30,13 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const client = getClient();
 
+    const fullName = body.full_name ?? body.fullName ?? "";
+    const avatarUrl = body.avatar_url ?? body.avatarUrl ?? null;
+    const pin = body.pin ?? null;
+
     await client.execute({
       sql: "UPDATE profiles SET full_name = ?, avatar_url = ?, pin = ?, updated_at = datetime('now') WHERE id = ?",
-      args: [body.fullName, body.avatarUrl || null, body.pin, "admin"],
+      args: [fullName, avatarUrl, pin, "admin"],
     });
 
     return NextResponse.json({ success: true });
