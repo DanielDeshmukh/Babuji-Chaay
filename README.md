@@ -172,7 +172,7 @@ The system uses 8 relational tables on Turso's managed SQLite:
 
 **[babuji-chaay.vercel.app](https://babuji-chaay.vercel.app)**
 
-> Default credentials: `admin` / `babuji2024`
+> Contact the administrator for access credentials.
 
 ---
 
