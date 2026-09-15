@@ -85,6 +85,16 @@ export async function POST(req: Request) {
             "SALE",
           ],
         });
+
+        await client.execute({
+          sql: "UPDATE products SET quantity = MAX(0, quantity - ?) WHERE id = ?",
+          args: [item.quantity, item.product_id],
+        });
+
+        await client.execute({
+          sql: "UPDATE todays_menu SET quantity = MAX(0, quantity - ?) WHERE product_id = ?",
+          args: [item.quantity, item.product_id],
+        });
       }
     }
 
