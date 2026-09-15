@@ -46,6 +46,11 @@ export async function POST(req: Request) {
         sql: "UPDATE products SET quantity = ? WHERE id = ?",
         args: [Number(p.quantity) - quantity, product_id],
       });
+
+      await client.execute({
+        sql: "UPDATE todays_menu SET quantity = MAX(0, quantity - ?) WHERE product_id = ?",
+        args: [quantity, product_id],
+      });
     }
 
     return NextResponse.json({ log: { product_id, quantity, type } });
