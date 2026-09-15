@@ -21,6 +21,10 @@ jobs:
 
       - name: TypeScript check
         run: npx tsc --noEmit
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Build
         run: npm run build
@@ -34,8 +38,6 @@ jobs:
   test-api:
     needs: build
     runs-on: ubuntu-latest
-    services:
-      none: {}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +48,7 @@ jobs:
 
       - run: npm ci
 
-      - name: Start dev server and test API
+      - name: Test API endpoints
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
@@ -54,55 +56,57 @@ jobs:
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
-          npm run dev &
+          npx next start -p 3000 &
           sleep 8
 
           echo "=== Health Check ==="
           HEALTH=$(curl -s http://localhost:3000/api/health)
           echo "$HEALTH"
-          echo "$HEALTH" | grep -q '"status":"healthy"' && echo "PASS: Health" || echo "FAIL: Health"
+          echo "$HEALTH" | grep -q '"status":"healthy"' && echo "PASS: Health" || { echo "FAIL: Health"; exit 1; }
 
           echo "=== Login ==="
-          LOGIN=$(curl -s -c cookies.txt -b cookies.txt -X POST http://localhost:3000/api/auth/login \
+          curl -s -c cookies.txt -b cookies.txt -X POST http://localhost:3000/api/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"username":"admin","password":"babuji2024"}')
-          echo "$LOGIN"
-          echo "$LOGIN" | grep -q '"success":true' && echo "PASS: Login" || echo "FAIL: Login"
+            -d '{"username":"admin","password":"babuji2024"}' > login.json
+          cat login.json
+          grep -q '"success":true' login.json && echo "PASS: Login" || { echo "FAIL: Login"; exit 1; }
 
           echo "=== Session ==="
-          SESSION=$(curl -s -b cookies.txt http://localhost:3000/api/auth/session)
-          echo "$SESSION"
-          echo "$SESSION" | grep -q '"loggedIn":true' && echo "PASS: Session" || echo "FAIL: Session"
+          curl -s -b cookies.txt http://localhost:3000/api/auth/session > session.json
+          cat session.json
+          grep -q '"loggedIn":true' session.json && echo "PASS: Session" || { echo "FAIL: Session"; exit 1; }
 
           echo "=== Products ==="
-          PRODUCTS=$(curl -s -b cookies.txt http://localhost:3000/api/products)
-          echo "$PRODUCTS" | grep -q '"products"' && echo "PASS: Products" || echo "FAIL: Products"
+          curl -s -b cookies.txt http://localhost:3000/api/products > products.json
+          grep -q '"products"' products.json && echo "PASS: Products" || { echo "FAIL: Products"; exit 1; }
 
           echo "=== Today's Menu ==="
-          MENU=$(curl -s -b cookies.txt http://localhost:3000/api/todays-menu)
-          echo "$MENU" | grep -q '"todays_menu"' && echo "PASS: TodaysMenu" || echo "FAIL: TodaysMenu"
+          curl -s -b cookies.txt http://localhost:3000/api/todays-menu > menu.json
+          grep -q '"todays_menu"' menu.json && echo "PASS: TodaysMenu" || { echo "FAIL: TodaysMenu"; exit 1; }
 
           echo "=== Summary ==="
-          SUMMARY=$(curl -s -b cookies.txt http://localhost:3000/api/summary)
-          echo "$SUMMARY" | grep -q '"summary"' && echo "PASS: Summary" || echo "FAIL: Summary"
+          curl -s -b cookies.txt http://localhost:3000/api/summary > summary.json
+          grep -q '"summary"' summary.json && echo "PASS: Summary" || { echo "FAIL: Summary"; exit 1; }
 
           echo "=== Create Transaction ==="
-          TXN=$(curl -s -b cookies.txt -X POST http://localhost:3000/api/transactions \
+          curl -s -b cookies.txt -X POST http://localhost:3000/api/transactions \
             -H "Content-Type: application/json" \
-            -d '{"total_amount":100,"discount":0,"cash_paid":100,"upi_paid":0,"items":[{"product_id":1,"quantity":2,"unit_price":50}]}')
-          echo "$TXN"
-          echo "$TXN" | grep -q '"sale"' && echo "PASS: Transaction" || echo "FAIL: Transaction"
+            -d '{"total_amount":100,"discount":0,"cash_paid":100,"upi_paid":0,"items":[{"product_id":1,"quantity":2,"unit_price":50}]}' > txn.json
+          cat txn.json
+          grep -q '"sale"' txn.json && echo "PASS: Transaction" || { echo "FAIL: Transaction"; exit 1; }
 
           echo "=== Offers ==="
-          OFFERS=$(curl -s -b cookies.txt http://localhost:3000/api/offers)
-          echo "$OFFERS" | grep -q '"offers"' && echo "PASS: Offers" || echo "FAIL: Offers"
+          curl -s -b cookies.txt http://localhost:3000/api/offers > offers.json
+          grep -q '"offers"' offers.json && echo "PASS: Offers" || { echo "FAIL: Offers"; exit 1; }
 
           echo "=== Special Numbers ==="
-          SPECIAL=$(curl -s -b cookies.txt http://localhost:3000/api/special-numbers)
-          echo "$SPECIAL" | grep -q '"special_numbers"' && echo "PASS: SpecialNumbers" || echo "FAIL: SpecialNumbers"
+          curl -s -b cookies.txt http://localhost:3000/api/special-numbers > special.json
+          grep -q '"special_numbers"' special.json && echo "PASS: SpecialNumbers" || { echo "FAIL: SpecialNumbers"; exit 1; }
 
           echo "=== Profile ==="
-          PROFILE=$(curl -s -b cookies.txt http://localhost:3000/api/profile)
-          echo "$PROFILE" | grep -q '"profile"' && echo "PASS: Profile" || echo "FAIL: Profile"
+          curl -s -b cookies.txt http://localhost:3000/api/profile > profile.json
+          grep -q '"profile"' profile.json && echo "PASS: Profile" || { echo "FAIL: Profile"; exit 1; }
 
+          echo ""
+          echo "ALL TESTS PASSED"
           kill %1 2>/dev/null || true
