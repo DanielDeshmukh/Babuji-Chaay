@@ -30,13 +30,13 @@ export async function POST(req: Request) {
 
     if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
-    const result = await db.insert(lossDumpLogs).values({
+    await db.insert(lossDumpLogs).values({
       productId: product_id,
       quantity,
       type,
       userId: "admin",
       priceAtTime: product.price,
-    }).returning();
+    });
 
     // Optionally decrement product quantity
     if (product.quantity >= quantity) {
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       }).where(eq(products.id, product_id));
     }
 
-    return NextResponse.json({ log: result[0] });
+    return NextResponse.json({ log: { product_id, quantity, type, priceAtTime: product.price } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -32,13 +32,13 @@ export async function POST(req: Request) {
       eq(specialNumbers.date, today)
     );
 
-    const result = await db.insert(specialNumbers).values({
+    await db.insert(specialNumbers).values({
       number,
       date: today,
       userId: "admin",
-    }).returning();
+    });
 
-    return NextResponse.json({ special_number: result[0] });
+    return NextResponse.json({ special_number: { number, date: today } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

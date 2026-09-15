@@ -29,16 +29,16 @@ export async function POST(req: Request) {
 
     if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
-    const result = await db.insert(todaysMenu).values({
+    await db.insert(todaysMenu).values({
       productId: product.id,
       name: product.name,
       category: product.category,
       price: product.price,
       quantity: product.quantity,
       isAvailable: true,
-    }).returning();
+    });
 
-    return NextResponse.json({ menu_item: result[0] });
+    return NextResponse.json({ menu_item: { product_id: product.id, name: product.name } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

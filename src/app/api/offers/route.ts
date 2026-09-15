@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   try {
     await requireSession();
     const body = await req.json();
-    const result = await db.insert(offers).values({
+    await db.insert(offers).values({
       userId: "admin",
       name: body.name,
       description: body.description || "",
@@ -33,9 +33,9 @@ export async function POST(req: Request) {
       dayOfWeek: body.is_recurring ? body.day_of_week : null,
       startDate: body.is_recurring ? null : body.start_date || null,
       endDate: body.is_recurring ? null : body.end_date || null,
-    }).returning();
+    });
 
-    return NextResponse.json({ offer: result[0] });
+    return NextResponse.json({ offer: { name: body.name } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

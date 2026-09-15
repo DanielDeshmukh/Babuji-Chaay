@@ -29,9 +29,9 @@ export async function POST(req: Request) {
       quantity: quantity || 0,
       price: price || 0,
       userId: "admin",
-    }).returning();
+    });
 
-    return NextResponse.json({ product: result[0] });
+    return NextResponse.json({ product: { name, category: category || "Uncategorized", quantity: quantity || 0, price: price || 0 } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

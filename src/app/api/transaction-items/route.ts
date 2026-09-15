@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     await requireSession();
     const body = await req.json();
 
-    const result = await db.insert(transactionItems).values(
+    await db.insert(transactionItems).values(
       body.items.map((item: {
         transaction_id: string;
         product_id: number;
@@ -45,9 +45,9 @@ export async function POST(req: Request) {
         price: item.price || item.unit_price * item.quantity,
         itemType: item.item_type,
       }))
-    ).returning();
+    );
 
-    return NextResponse.json({ items: result });
+    return NextResponse.json({ items: body.items });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

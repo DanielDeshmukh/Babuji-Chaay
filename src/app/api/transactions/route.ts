@@ -57,9 +57,9 @@ export async function POST(req: Request) {
 
     const dailyBillNo = (countResult[0]?.count || 0) + 1;
 
-    const transactionId = crypto.randomUUID();
+    const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-    const result = await db.insert(transactions).values({
+    await db.insert(transactions).values({
       id: transactionId,
       userId: "admin",
       transactionType: "SALE",
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       discount: body.discount || 0,
       cashPaid: body.cash_paid || 0,
       upiPaid: body.upi_paid || 0,
-    }).returning();
+    });
 
     // Insert transaction items
     if (body.items?.length) {
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ sale: result[0] });
+    return NextResponse.json({ sale: { id: transactionId, dailyBillNo } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
