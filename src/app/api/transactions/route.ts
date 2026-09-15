@@ -13,10 +13,12 @@ export async function GET(req: Request) {
 
     let rows;
     if (start && end) {
+      const startFixed = start.replace("T", " ");
+      const endFixed = end.replace("T", " ");
       rows = await db.query.transactions.findMany({
         where: and(
-          gte(transactions.createdAt, start),
-          lte(transactions.createdAt, end)
+          gte(transactions.createdAt, startFixed),
+          lte(transactions.createdAt, endFixed)
         ),
         orderBy: [desc(transactions.createdAt)],
       });
@@ -30,7 +32,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ transactions: rows });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 401 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -39,10 +41,9 @@ export async function POST(req: Request) {
     await requireSession();
     const body = await req.json();
 
-    // Get next daily bill number for today
     const today = new Date().toISOString().split("T")[0];
-    const todayStart = `${today}T00:00:00`;
-    const todayEnd = `${today}T23:59:59`;
+    const todayStart = `${today} 00:00:00`;
+    const todayEnd = `${today} 23:59:59`;
 
     const countResult = await db
       .select({ count: sql<number>`count(*)` })
@@ -70,23 +71,25 @@ export async function POST(req: Request) {
       upiPaid: body.upi_paid || 0,
     });
 
-    // Insert transaction items
     if (body.items?.length) {
-      await db.insert(transactionItems).values(
-        body.items.map((item: { product_id: number; quantity: number; unit_price: number }) => ({
-          transactionId,
-          productId: item.product_id,
-          userId: "admin",
-          quantity: item.quantity,
-          unitPrice: item.unit_price,
-          price: item.unit_price * item.quantity,
-          itemType: "SALE",
-        }))
-      );
+      const items = body.items.map((item: { product_id: number; quantity: number; unit_price: number }) => ({
+        transactionId,
+        productId: item.product_id,
+        userId: "admin",
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+        price: item.unit_price * item.quantity,
+        itemType: "SALE",
+      }));
+
+      for (const item of items) {
+        await db.insert(transactionItems).values(item);
+      }
     }
 
     return NextResponse.json({ sale: { id: transactionId, dailyBillNo } });
   } catch (err: unknown) {
+    console.error("Transaction POST error:", err);
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

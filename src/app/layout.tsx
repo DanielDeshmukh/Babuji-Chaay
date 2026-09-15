@@ -3,9 +3,19 @@ import "./globals.css";
 import Background from "@/components/Background";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://babuji-chaay.vercel.app"),
   title: "Babuji Chaay",
   description: "Babuji Chaay POS System",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "Babuji Chaay",
+    description: "Babuji Chaay POS System",
+    images: ["/icon-512x512.png"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
