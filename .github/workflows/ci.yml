@@ -82,7 +82,7 @@ jobs:
         run: |
           SESSION=$(curl -s -b cookies.txt http://localhost:3000/api/auth/session)
           echo "Session: $SESSION"
-          echo "$SESSION" | grep -q '"loggedIn":true' && echo "PASS: Session" || { echo "FAIL: Session"; exit 1; }
+          echo "$SESSION" | grep -q '"authenticated":true' && echo "PASS: Session" || { echo "FAIL: Session"; exit 1; }
 
       - name: Test products (DB required)
         run: |
