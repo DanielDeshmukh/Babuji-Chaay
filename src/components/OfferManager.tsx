@@ -248,7 +248,8 @@ const OfferManager = () => {
                   className="w-full p-3 border-2 border-muted bg-background rounded-lg outline-none"
                 >
                   <option value="percentage">Percent (%)</option>
-                  <option value="fixed">Fixed</option>
+                  <option value="fixed">Fixed (INR)</option>
+                  <option value="bogo">Buy One Get One (BOGO)</option>
                 </select>
               </div>
               <div>
