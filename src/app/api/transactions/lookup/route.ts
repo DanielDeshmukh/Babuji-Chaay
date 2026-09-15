@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
-import { transactions } from "@/lib/db/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { createClient } from "@libsql/client";
 import { requireSession } from "@/lib/admin";
+
+function getClient() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN!,
+  });
+}
 
 export async function GET(req: Request) {
   try {
@@ -13,14 +18,14 @@ export async function GET(req: Request) {
     const end = searchParams.get("end");
 
     if (billNo && start && end) {
-      const row = await db.query.transactions.findFirst({
-        where: and(
-          eq(transactions.dailyBillNo, Number(billNo)),
-          gte(transactions.createdAt, start),
-          lte(transactions.createdAt, end)
-        ),
+      const client = getClient();
+      const startFixed = start.replace("T", " ");
+      const endFixed = end.replace("T", " ");
+      const result = await client.execute({
+        sql: "SELECT * FROM transactions WHERE daily_bill_no = ? AND created_at >= ? AND created_at <= ?",
+        args: [Number(billNo), startFixed, endFixed],
       });
-      return NextResponse.json({ transaction: row || null });
+      return NextResponse.json({ transaction: result.rows[0] || null });
     }
 
     return NextResponse.json({ error: "Missing params" }, { status: 400 });
