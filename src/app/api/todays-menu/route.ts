@@ -13,6 +13,19 @@ export async function GET() {
   try {
     await requireSession();
     const client = getClient();
+
+    try {
+      await client.execute("ALTER TABLE todays_menu ADD COLUMN created_at TEXT DEFAULT (datetime('now'))");
+    } catch {
+      // Column already exists, ignore
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    await client.execute({
+      sql: "DELETE FROM todays_menu WHERE date(created_at) != ?",
+      args: [today],
+    });
+
     const result = await client.execute("SELECT * FROM todays_menu ORDER BY name ASC");
     return NextResponse.json({ todays_menu: result.rows });
   } catch (err: unknown) {
@@ -37,7 +50,7 @@ export async function POST(req: Request) {
     const p = product.rows[0];
 
     await client.execute({
-      sql: "INSERT INTO todays_menu (product_id, name, category, price, quantity, is_available) VALUES (?, ?, ?, ?, ?, ?)",
+      sql: "INSERT INTO todays_menu (product_id, name, category, price, quantity, is_available, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))",
       args: [p.id, p.name, p.category, p.price, p.quantity, 1],
     });
 
