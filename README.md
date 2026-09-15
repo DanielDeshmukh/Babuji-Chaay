@@ -1,260 +1,203 @@
+<div align="center">
 
-# Babuji Chaay  
-**Point of Sale & Café Management System**  
-**Developed by:** Daniel Deshmukh & Saurabh Yadav  
+![Babuji Chaay](https://img.shields.io/badge/Babuji_Chaay-Brown?style=for-the-badge&logo=chai&logoColor=white)
+
+# Babuji Chaay POS
+
+**A modern, full-stack Point-of-Sale system built exclusively for chai shops — combining inventory management, real-time billing, loss tracking, and analytics into a single lightning-fast PWA.**
+
+![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+![Next.js](https://img.shields.io/badge/Built_with-Next.js_15-000000?style=for-the-badge&logo=next.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![License](https://img.shields.io/badge/License-Private-FF6B6B?style=for-the-badge)
+![CI](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)
+![Last Commit](https://img.shields.io/badge/Last_Commit-September_2026-blue?style=for-the-badge)
+
+</div>
 
 ---
 
 ## Overview
 
-**Babuji Chaay** is a full-stack web application serving as an end-to-end **Point of Sale (POS)** and **Inventory Management System** for cafés, tea stalls, and small businesses.  
-It enables seamless billing, real-time inventory management, offer creation, and in-depth analytics — all through an intuitive, touch-friendly interface.
+Babuji Chaay is a production-grade POS system designed specifically for Indian chai stalls and tea shops. It replaces the traditional register-and-calculator workflow with a digital system that handles everything from inventory tracking to sales analytics — all within a Progressive Web App that works on any device with a browser.
 
-Built using **React + Tailwind** on the frontend and **Node.js + Supabase** on the backend, it provides a modern, secure, and responsive experience for café operators.
-
----
-
-## Core Objectives
-
-- Streamline daily billing and transaction workflows  
-- Simplify inventory and product management  
-- Provide real-time analytics and visual reports  
-- Offer a kiosk-friendly, touch-based interface  
-- Support offers, discounts, and promotional management  
+The system is built for **single-operator use** — one admin manages the shop, handles billing, tracks inventory, and monitors sales through a unified dashboard.
 
 ---
 
-## System Architecture
+## Features
 
-### Frontend
+### Billing & Transactions
+- **One-tap item selection** with category-based filtering and search
+- **Percentage, fixed, and BOGO discount support** — flexible offer management
+- **Split payment processing** — accept cash, UPI, or card for a single transaction
+- **Transaction history with full audit trail** — every sale item linked to its parent transaction
+- **Bill number lookup** — instantly retrieve any past invoice by bill number
+- **Refund processing with stock restoration** — partial and full refunds handled automatically
 
-**Tech Stack:** React, Tailwind CSS, shadcn/ui, lucide-react, recharts, Vite  
+### Inventory Management
+- **Real-time stock tracking** with low-stock alerts (≤5 items highlighted in red)
+- **Daily menu auto-reset** — menu refreshes each day, old entries archived automatically
+- **Loss and dump logging** — record wastage, expired stock, and staff consumption with timestamps
+- **Product categories** — organize menu items (Chai, Snacks, Cold Drinks, etc.)
 
-The frontend delivers a responsive, dynamic experience optimized for touchscreen and desktop users.
+### Analytics & Reports
+- **Interactive dashboard** with Recharts-powered bar and line charts
+- **KPI cards** — today's sales, transaction count, revenue, and pending refunds
+- **Daily and monthly sales reports** — downloadable Excel (.xlsx) with formatted headers and totals
+- **Transaction export** — complete sales data with per-item breakdowns
 
-#### Key Components
-
-| Component | Description |
-|------------|-------------|
-| `Dashboard.jsx` | Displays performance metrics, sales charts, and trends |
-| `CreationPage.jsx` | Interface for creating or editing products/offers |
-| `InventoryManager.jsx` | Manages stock levels and product details |
-| `OfferManager.jsx` | Handles promotional offers and discounts |
-| `VirtualKeyboard.jsx` | Provides an on-screen keyboard for POS terminals |
-| `AuthModal.jsx` | Handles user authentication |
-| `Background.jsx` | Implements the brand’s forest-green theme with golden accents |
-| `SpecialNumber.jsx` | Generates unique daily billing identifiers |
-
-#### Theming & UI
-- Light/Dark mode support  
-- Responsive Tailwind-based layouts  
-- Modern, accessible UI with **shadcn/ui** components  
+### Profile & Settings
+- **Admin profile management** with avatar upload (persisted as base64)
+- **Dark and light mode toggle** — comfortable viewing in any lighting
+- **PWA installable** — add to home screen on mobile and desktop
 
 ---
 
-### Backend
+## Tech Stack
 
-**Tech Stack:** Node.js, Express.js, Supabase (PostgreSQL via NeonDB)  
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | Next.js 15 (App Router) |
+| **Language** | TypeScript |
+| **Styling** | Tailwind CSS |
+| **Database** | Turso (SQLite via libSQL) |
+| **Client** | `@libsql/client` (raw SQL, no ORM) |
+| **Auth** | JWT cookie-based authentication |
+| **Charts** | Recharts |
+| **Excel Export** | ExcelJS |
+| **Deployment** | Vercel |
+| **CI/CD** | GitHub Actions |
+| **PWA** | Hand-written Service Worker |
 
-The backend follows a modular **MVC structure** — managing business logic, data persistence, and RESTful APIs.
+---
 
-#### Key Files & Directories
+## Architecture
 
-| File / Folder | Description |
-|----------------|-------------|
-| `script.js` | Entry point for Express server and middleware setup |
-| `controllers/transactionController.js` | Handles transactions, payments, and bill numbering |
-| `controllers/reportController.js` | Generates reports and analytics |
-| `routes/transactionRoutes.js` | Defines transaction-related endpoints |
-| `routes/reportRoutes.js` | Defines report/analytics endpoints |
-| `db/neonClient.js` | Neon PostgreSQL database connection |
-| `supabaseClient.js` | Supabase SDK configuration |
+```
+src/
+├── app/
+│   ├── api/              # 20+ API routes (raw libSQL queries)
+│   │   ├── auth/         # Login, Session, Logout
+│   │   ├── products/     # CRUD inventory
+│   │   ├── todays-menu/  # Daily menu with auto-reset
+│   │   ├── transactions/ # Sales processing + stock decrement
+│   │   ├── refund/       # Refund processing + stock restoration
+│   │   ├── loss-dump-logs/ # Wastage tracking
+│   │   ├── offers/       # Discount rules
+│   │   ├── exports/      # Excel report generation
+│   │   └── health/       # Public health check endpoint
+│   ├── home/             # Dashboard with KPIs and charts
+│   ├── menu/             # POS billing screen
+│   ├── inventory/        # Stock management
+│   ├── create/           # Product/offer/refund creation
+│   ├── profile/          # Admin profile + loss/dump form
+│   └── settings/         # Data export
+├── components/           # Reusable UI components
+└── lib/
+    ├── db/               # Schema + seed data
+    ├── auth.ts           # JWT helpers
+    └── admin.ts          # Admin session management
+```
 
 ---
 
 ## Database Schema
 
-**Supabase** powers authentication and data storage.  
+The system uses 8 relational tables on Turso's managed SQLite:
 
-| Table | Purpose | Key Columns |
+| Table | Purpose |
+|-------|---------|
+| `users` | Admin credentials |
+| `profiles` | Admin profile data (name, phone, email, avatar) |
+| `products` | Menu items with stock quantities |
+| `todays_menu` | Daily menu snapshot with per-day stock |
+| `transactions` | Sales records with totals and payment method |
+| `transaction_items` | Individual items within each transaction |
+| `offers` | Discount rules (percentage, fixed, BOGO) |
+| `special_numbers` | Bill number aliases |
+| `loss_dump_logs` | Wastage and inventory adjustment records |
+
+---
+
+## API Routes
+
+| Method | Endpoint | Description |
 |--------|----------|-------------|
-| `products` | Stores menu items and stock data | `id`, `name`, `price`, `stock_quantity`, `category` |
-| `transactions` | Records each sale with a unique daily bill number | `id`, `daily_bill_no`, `total_amount`, `discount`, `payment_method`, `created_at` |
-| `offers` | Manages active offers and their conditions | `id`, `description`, `product_ids[]`, `offer_duration`, `discount_value` |
-| `users` | Authentication and role-based access | `id`, `email`, `role`, `created_at` |
+| `POST` | `/api/auth/login` | Authenticate admin user |
+| `GET` | `/api/auth/session` | Check current session |
+| `POST` | `/api/auth/logout` | Clear session cookie |
+| `GET` | `/api/products` | List all products |
+| `POST` | `/api/products` | Create new product |
+| `PUT` | `/api/products` | Update product details |
+| `DELETE` | `/api/products?id=` | Delete product |
+| `GET` | `/api/todays-menu` | Get today's menu (auto-resets daily) |
+| `POST` | `/api/todays-menu` | Add item to today's menu |
+| `POST` | `/api/transactions` | Process a sale (decrements stock) |
+| `GET` | `/api/transactions` | List transactions with filters |
+| `GET` | `/api/transactions/lookup?bill_number=` | Look up invoice by bill number |
+| `POST` | `/api/refund` | Process refund (restores stock) |
+| `GET` | `/api/offers` | List active offers |
+| `POST` | `/api/offers` | Create discount rule |
+| `GET` | `/api/loss-dump-logs` | List loss/dump entries |
+| `POST` | `/api/loss-dump-logs` | Log inventory adjustment |
+| `GET` | `/api/exports/sales` | Download sales report (.xlsx) |
+| `GET` | `/api/profile` | Get admin profile |
+| `PUT` | `/api/profile` | Update admin profile |
+| `GET` | `/api/health` | System health check (public) |
 
 ---
 
-## ⚙️ Core Features
+## Security
 
-### 1. **Point of Sale (POS)**
-- Fast, intuitive billing system  
-- Split payments (Cash + UPI)  
-- Auto-calculates totals and change  
-- Generates unique `daily_bill_no`
-
-### 2. **Inventory Management**
-- Add, edit, or remove products  
-- Auto-adjust stock on sale  
-- Visual inventory dashboards  
-
-### 3. **Offer Management**
-- Define “Buy One Get One” and discount offers  
-- Time-bound and product-based offers  
-- Easy modification and deactivation  
-
-### 4. **Reports & Analytics**
-- Daily/monthly summaries  
-- Revenue charts via **recharts**  
-- Exportable, printable insights  
-
-### 5. **Virtual Keyboard**
-- Touch-friendly on-screen keyboard  
-- Usable across all POS fields  
-
-### 6. **UI & Theming**
-- Café-inspired design  
-- Fast-rendering UI  
-- Fully responsive  
-
-### 7. **Authentication & Access Control**
-- Supabase authentication  
-- Role-based permissions  
+- **JWT-based authentication** — cookie-secured session tokens
+- **All routes protected** except `/api/health` and `/api/auth/login`
+- **Admin-only access** — single-user system, no registration flow
+- **No secrets in client code** — environment variables server-side only
+- **CORS configured** — only accepts requests from the same origin
 
 ---
 
-## Tech Stack Summary
+## Performance
 
-| Layer | Technologies |
-|--------|---------------|
-| **Frontend** | React, Tailwind CSS, shadcn/ui, lucide-react, recharts |
-| **Backend** | Node.js, Express.js |
-| **Database** | Supabase (PostgreSQL via NeonDB) |
-| **Reports** | Backend-driven via controllers |
-| **Hosting** | Vercel / Render / Supabase |
-| **Version Control** | Git & GitHub |
+- **First Load JS**: ~103 KB (shared across all routes)
+- **Middleware**: 39.6 KB (route protection and auth checks)
+- **Build time**: ~14 seconds
+- **CI pipeline**: ~2 minutes (build + API tests)
+- **Zero ORM overhead** — raw SQL queries for maximum throughput
 
 ---
 
-## Folder Structure
+## Live Demo
 
-```
+**[babuji-chaay.vercel.app](https://babuji-chaay.vercel.app)**
 
-Babuji-Chaay/
-├── Backend/
-│   ├── controllers/
-│   │   ├── reportController.js
-│   │   └── transactionController.js
-│   ├── routes/
-│   │   ├── reportRoutes.js
-│   │   └── transactionRoutes.js
-│   ├── db/
-│   │   └── neonClient.js
-│   ├── supabaseClient.js
-│   ├── script.js
-│   └── package.json
-│
-├── Frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── assets/
-│   │   ├── lib/
-│   │   └── App.jsx
-│   ├── public/
-│   ├── package.json
-│   └── vite.config.js
-│
-└── README.md
-
-````
+> Default credentials: `admin` / `babuji2024`
 
 ---
 
-## Installation & Setup
+## CI/CD Pipeline
 
-### Prerequisites
-- Node.js v18+  
-- Active Supabase project  
-- PostgreSQL (NeonDB or Supabase-hosted)
+Automated via GitHub Actions on every push to `main`:
 
-### 1. Backend Setup
-```bash
-cd Backend
-npm install
-npm start
-````
-
-Create a `.env` file with:
-
-```env
-SUPABASE_URL=<your-supabase-url>
-SUPABASE_KEY=<your-supabase-key>
-PORT=3000
-```
-
-### 2. Frontend Setup
-
-```bash
-cd Frontend
-npm install
-npm run dev
-```
-
-### 3. Android APK Setup
-
-The project uses Capacitor for Android packaging.
-
-```bash
-cd Frontend
-npm install
-npm run apk:debug
-```
-
-That command will:
-
-- build the React app into `Frontend/dist`
-- sync the latest web assets into `Frontend/android`
-- generate a debug APK with Gradle
-
-The generated APK will be available at:
-
-```text
-Frontend/android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-For a release build:
-
-```bash
-npm run apk:release
-```
-
-If you want to open the Android project in Android Studio instead:
-
-```bash
-npm run android
-```
+1. **Build job** — TypeScript compilation + production build
+2. **API test job** — Spins up dev server, runs integration tests against all endpoints
+   - Health check, authentication, session validation
+   - Database-dependent tests (products, menu, offers, profile, transactions)
+3. **Deploy** — Vercel auto-deploys on merge to `main`
 
 ---
 
-## API Endpoints
+## License
 
-| Endpoint               | Method | Description                |
-| ---------------------- | ------ | -------------------------- |
-| `/api/transactions`    | GET    | Retrieve all transactions  |
-| `/api/transactions`    | POST   | Create a new transaction   |
-| `/api/reports/daily`   | GET    | Fetch daily report summary |
-| `/api/reports/monthly` | GET    | Fetch monthly analytics    |
+Proprietary — All rights reserved. Not authorized for redistribution or commercial use without explicit permission from the author.
 
 ---
 
-## Contributors
+<div align="center">
 
-| Name                | Role                 | Responsibilities                                             |
-| ------------------- | -------------------- | ------------------------------------------------------------ |
-| **Daniel Deshmukh** | Full Stack Developer | Core architecture, backend controllers, Supabase integration |
-| **Saurabh Yadav**   | Frontend Developer   | UI/UX design, React components, and performance optimization |
+**Built with care for chai shops everywhere.**
 
----
+![Babuji Chaay](https://img.shields.io/badge/Made_for-Babuji_Chaay-Brown?style=for-the-badge)
 
-
+</div>
