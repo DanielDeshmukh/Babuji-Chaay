@@ -121,10 +121,14 @@ const ProfileForm = ({
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    const url = URL.createObjectURL(file);
-                    setProfile((p) =>
-                      p ? { ...p, avatar_url: url } : p
-                    );
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      const base64 = reader.result as string;
+                      setProfile((p) =>
+                        p ? { ...p, avatar_url: base64 } : p
+                      );
+                    };
+                    reader.readAsDataURL(file);
                   }
                 }}
                 className="hidden"
