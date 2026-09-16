@@ -59,6 +59,9 @@ function Dashboard() {
   const [showReportOptions, setShowReportOptions] = useState(false);
   const [showTransactionOptions, setShowTransactionOptions] =
     useState(false);
+  const [transactions, setTransactions] = useState<Array<Record<string, unknown>>>([]);
+  const [showTransactions, setShowTransactions] = useState(false);
+  const [txnLoading, setTxnLoading] = useState(false);
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -199,13 +202,28 @@ function Dashboard() {
   };
 
   const handleDownloadReport = (type: string) => {
-    const params = getDateParams(type);
-    if (!params) return;
-    window.open(`/api/reports/generate?${params}`, "_blank");
+    let url = "/api/exports/sales?";
+
+    if (type === "daily") {
+      const today = formatLocalDate(new Date().toISOString());
+      url += `type=daily&singleDate=${today}`;
+    } else if (type === "specific" && specificDate) {
+      url += `type=daily&singleDate=${specificDate}`;
+    } else if (type === "range" && startDate && endDate) {
+      if (new Date(startDate) > new Date(endDate)) {
+        alert("Start date cannot be later than end date.");
+        return;
+      }
+      url += `type=monthly&dateRangeStart=${startDate}&dateRangeEnd=${endDate}`;
+    } else {
+      return;
+    }
+
+    window.open(url, "_blank");
     setShowReportOptions(false);
   };
 
-  const handleViewTransactions = (type: string) => {
+  const handleViewTransactions = async (type: string) => {
     let url = "/api/transactions";
 
     if (type === "invoice") {
@@ -213,15 +231,26 @@ function Dashboard() {
         alert("Please enter a Daily Bill Number first.");
         return;
       }
-      url = `/api/transactions?billNo=${selectedDailyBillNo}`;
+      url += `?billNo=${selectedDailyBillNo}`;
     } else {
       const params = getDateParams(type);
       if (!params) return;
       url += `?${params}`;
     }
 
-    window.open(url, "_blank");
+    setTxnLoading(true);
+    setShowTransactions(true);
     setShowTransactionOptions(false);
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      setTransactions(data.transactions || []);
+    } catch {
+      setTransactions([]);
+    } finally {
+      setTxnLoading(false);
+    }
   };
 
   const visibleData = data.length ? data.slice(-VISIBLE_POINTS) : [];
@@ -522,6 +551,72 @@ function Dashboard() {
           </div>
         </div>
       </main>
+
+      {/* Transaction Table Modal */}
+      {showTransactions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowTransactions(false)}
+          />
+          <div className="relative z-10 w-full max-w-4xl max-h-[80vh] bg-card rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-bold">Transactions</h2>
+              <button
+                onClick={() => setShowTransactions(false)}
+                className="text-muted-foreground hover:text-foreground text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {txnLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+                </div>
+              ) : transactions.length === 0 ? (
+                <p className="text-center text-muted-foreground py-12">No transactions found.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-muted border-b border-border">
+                    <tr>
+                      <th className="p-3 text-left text-xs font-bold uppercase">Bill #</th>
+                      <th className="p-3 text-left text-xs font-bold uppercase">Date</th>
+                      <th className="p-3 text-right text-xs font-bold uppercase">Total</th>
+                      <th className="p-3 text-right text-xs font-bold uppercase">Discount</th>
+                      <th className="p-3 text-right text-xs font-bold uppercase">Cash</th>
+                      <th className="p-3 text-right text-xs font-bold uppercase">UPI</th>
+                      <th className="p-3 text-center text-xs font-bold uppercase">Type</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {transactions.map((txn, i) => (
+                      <tr key={i} className="hover:bg-muted/30">
+                        <td className="p-3 font-bold">{String(txn.daily_bill_no || "-")}</td>
+                        <td className="p-3 text-muted-foreground">{String(txn.created_at || "").slice(0, 16)}</td>
+                        <td className="p-3 text-right font-bold">₹{Number(txn.total_amount || 0).toFixed(2)}</td>
+                        <td className="p-3 text-right text-red-500">₹{Number(txn.discount || 0).toFixed(2)}</td>
+                        <td className="p-3 text-right">₹{Number(txn.cash_paid || 0).toFixed(2)}</td>
+                        <td className="p-3 text-right">₹{Number(txn.upi_paid || 0).toFixed(2)}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${
+                            txn.transaction_type === "REFUND"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-green-100 text-green-700"
+                          }`}>
+                            {String(txn.transaction_type || "SALE")}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );
