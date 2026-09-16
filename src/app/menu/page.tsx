@@ -404,11 +404,8 @@ export default function MenuPage() {
               <h3 className="text-lg font-bold text-primary">
                 {item.name}
               </h3>
-              <p className="text-sm text-muted-foreground">
-                Stock: {item.quantity}
-              </p>
               <p className="text-primary text-xl font-bold">
-                {item.price}
+                ₹{item.price}
               </p>
               <div className="flex items-center justify-between mt-3">
                 <button
