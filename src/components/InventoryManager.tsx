@@ -213,89 +213,85 @@ const InventoryManager = () => {
         <div className="lg:col-span-2 space-y-6">
           <input
             type="text"
-            placeholder="SEARCH INVENTORY..."
+            placeholder="Search products to edit..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full p-4 border-2 border-border rounded-xl bg-card font-bold outline-none focus:border-primary"
           />
 
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-5 py-2 rounded-full text-[10px] font-black uppercase border-2 transition-all ${
-                  activeCategory === cat
-                    ? "bg-primary border-primary text-primary-foreground"
-                    : "bg-background border-border text-muted-foreground hover:border-primary"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          <div className="bg-card border-2 border-border rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border">
-                <tr>
-                  <th className="p-4 text-[10px] font-black uppercase text-left">
-                    Product
-                  </th>
-                  <th className="p-4 text-[10px] font-black uppercase text-left">
-                    Category
-                  </th>
-                  <th className="p-4 text-[10px] font-black uppercase text-center">
-                    Stock
-                  </th>
-                  <th className="p-4 text-[10px] font-black uppercase text-right">
-                    Price
-                  </th>
-                  <th className="p-4 text-[10px] font-black uppercase text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredProducts.map((p) => (
-                  <tr key={p.id} className="hover:bg-muted/30">
-                    <td className="p-4 font-black uppercase">{p.name}</td>
-                    <td className="p-4 text-xs text-muted-foreground uppercase">
-                      {p.category || "Uncategorized"}
-                    </td>
-                    <td className="p-4 text-center">
-                      <span
-                        className={`px-3 py-1 rounded text-xs font-black ${
-                          p.quantity <= 5
-                            ? "bg-secondary text-secondary-foreground"
-                            : "bg-muted text-foreground"
-                        }`}
-                      >
-                        {p.quantity}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right font-black text-primary">
-                      {p.price.toFixed(2)}
-                    </td>
-                    <td className="p-4 text-right">
-                      <button
-                        onClick={() => handleEdit(p)}
-                        className="text-primary text-[10px] font-black uppercase mr-2"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p.id)}
-                        className="text-destructive text-[10px] font-black uppercase"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
+          {search && (
+            <>
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-5 py-2 rounded-full text-[10px] font-black uppercase border-2 transition-all ${
+                      activeCategory === cat
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "bg-background border-border text-muted-foreground hover:border-primary"
+                    }`}
+                  >
+                    {cat}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+
+              <div className="bg-card border-2 border-border rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted border-b border-border">
+                    <tr>
+                      <th className="p-4 text-[10px] font-black uppercase text-left">
+                        Product
+                      </th>
+                      <th className="p-4 text-[10px] font-black uppercase text-left">
+                        Category
+                      </th>
+                      <th className="p-4 text-[10px] font-black uppercase text-right">
+                        Price
+                      </th>
+                      <th className="p-4 text-[10px] font-black uppercase text-right">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredProducts.map((p) => (
+                      <tr key={p.id} className="hover:bg-muted/30">
+                        <td className="p-4 font-black uppercase">{p.name}</td>
+                        <td className="p-4 text-xs text-muted-foreground uppercase">
+                          {p.category || "Uncategorized"}
+                        </td>
+                        <td className="p-4 text-right font-black text-primary">
+                          {p.price.toFixed(2)}
+                        </td>
+                        <td className="p-4 text-right">
+                          <button
+                            onClick={() => handleEdit(p)}
+                            className="text-primary text-[10px] font-black uppercase mr-2"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            className="text-destructive text-[10px] font-black uppercase"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {!search && (
+            <div className="text-center py-12 text-muted-foreground">
+              <p className="text-sm">Type in the search bar to find and edit products</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
