@@ -45,7 +45,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const client = getClient();
 
-    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const istDate = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    const today = istDate.toISOString().split("T")[0];
+    const istTime = istDate.toISOString().slice(0, 19).replace("T", " ");
     const todayStart = `${today} 00:00:00`;
     const todayEnd = `${today} 23:59:59`;
 
@@ -58,7 +61,7 @@ export async function POST(req: Request) {
     const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
     await client.execute({
-      sql: "INSERT INTO transactions (id, user_id, transaction_type, daily_bill_no, total_amount, discount, cash_paid, upi_paid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      sql: "INSERT INTO transactions (id, user_id, transaction_type, daily_bill_no, total_amount, discount, cash_paid, upi_paid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       args: [
         transactionId,
         "admin",
@@ -68,6 +71,7 @@ export async function POST(req: Request) {
         body.discount || 0,
         body.cash_paid || 0,
         body.upi_paid || 0,
+        istTime,
       ],
     });
 

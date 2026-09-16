@@ -28,7 +28,9 @@ export async function POST(req: Request) {
     const { number, date } = body;
     const client = getClient();
 
-    const today = date || new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const istDate = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    const today = date || istDate.toISOString().split("T")[0];
     await client.execute({ sql: "DELETE FROM special_numbers WHERE date = ?", args: [today] });
 
     await client.execute({

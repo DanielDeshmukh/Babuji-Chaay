@@ -111,7 +111,9 @@ function Dashboard() {
   useEffect(() => {
     const fetchKPIs = async () => {
       try {
-        const todayStr = formatLocalDate(new Date().toISOString());
+        const now = new Date();
+        const istDate = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+        const todayStr = istDate.toISOString().split("T")[0];
         const start = startDate || todayStr;
         const end = endDate || todayStr;
 
@@ -193,7 +195,9 @@ function Dashboard() {
       startStr = `${specificDate}T00:00:00`;
       endStr = `${specificDate}T23:59:59`;
     } else {
-      const today = formatLocalDate(new Date().toISOString());
+      const now = new Date();
+      const istDate = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+      const today = istDate.toISOString().split("T")[0];
       startStr = `${today}T00:00:00`;
       endStr = `${today}T23:59:59`;
     }

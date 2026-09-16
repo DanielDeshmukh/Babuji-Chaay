@@ -42,9 +42,13 @@ export async function POST(req: Request) {
 
     const refundId = `${Date.now()}-refund-${Math.random().toString(36).slice(2, 10)}`;
 
+    const now = new Date();
+    const istDate = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    const istTime = istDate.toISOString().slice(0, 19).replace("T", " ");
+
     await client.execute({
-      sql: "INSERT INTO transactions (id, user_id, transaction_type, daily_bill_no, total_amount, discount, cash_paid, upi_paid, parent_id, refunded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      args: [refundId, "admin", "REFUND", orig.daily_bill_no, refundTotal, 0, 0, 0, transactionId, "admin"],
+      sql: "INSERT INTO transactions (id, user_id, transaction_type, daily_bill_no, total_amount, discount, cash_paid, upi_paid, parent_id, refunded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      args: [refundId, "admin", "REFUND", orig.daily_bill_no, refundTotal, 0, 0, 0, transactionId, "admin", istTime],
     });
 
     for (const item of refundItems) {

@@ -262,7 +262,9 @@ export default function MenuPage() {
     if (!billItems.length) return alert("No items in the bill.");
 
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const now = new Date();
+      const istDate = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+      const today = istDate.toISOString().split("T")[0];
       const countRes = await fetch(`/api/transactions?start=${today}T00:00:00&end=${today}T23:59:59`);
       const countData = await countRes.json();
       const todayTxns = (countData.transactions || []).filter(

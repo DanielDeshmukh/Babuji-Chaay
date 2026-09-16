@@ -36,9 +36,13 @@ export async function POST(req: Request) {
     if (!product.rows.length) return NextResponse.json({ error: "Product not found" }, { status: 404 });
     const p = product.rows[0];
 
+    const now = new Date();
+    const istDate = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    const istTime = istDate.toISOString().slice(0, 19).replace("T", " ");
+
     await client.execute({
-      sql: "INSERT INTO loss_dump_logs (product_id, quantity, type, user_id, price_at_time) VALUES (?, ?, ?, ?, ?)",
-      args: [product_id, quantity, type, "admin", p.price],
+      sql: "INSERT INTO loss_dump_logs (product_id, quantity, type, user_id, price_at_time, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      args: [product_id, quantity, type, "admin", p.price, istTime],
     });
 
     if (Number(p.quantity) >= quantity) {
