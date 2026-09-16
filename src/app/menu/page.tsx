@@ -288,6 +288,17 @@ export default function MenuPage() {
       if (isWinner) {
         setIsSpecialActive(true);
         setSpecialDiscount(true);
+
+        await fetch("/api/transactions", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: txnData.sale.id,
+            discount: subtotal,
+            cash_paid: 0,
+            upi_paid: 0,
+          }),
+        });
       }
 
       const receiptData = {
