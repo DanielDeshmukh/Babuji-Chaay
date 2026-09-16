@@ -38,9 +38,6 @@ export default function Header() {
             <Link href="/home" className={linkClasses("/home")}>
               Dashboard
             </Link>
-            <Link href="/inventory" className={linkClasses("/inventory")}>
-              Inventory
-            </Link>
             <Link href="/menu" className={linkClasses("/menu")}>
               Menu
             </Link>
@@ -82,13 +79,6 @@ export default function Header() {
               onClick={() => setMobileOpen(false)}
             >
               Dashboard
-            </Link>
-            <Link
-              href="/inventory"
-              className={linkClasses("/inventory")}
-              onClick={() => setMobileOpen(false)}
-            >
-              Inventory
             </Link>
             <Link
               href="/menu"
