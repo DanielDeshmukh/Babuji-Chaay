@@ -4,13 +4,25 @@ import { User, Menu as MenuIcon, X } from "lucide-react";
 import { IoSettingsOutline } from "react-icons/io5";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.profile?.avatar_url) {
+          setAvatar(data.profile.avatar_url);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const linkClasses = (href: string) =>
     pathname === href
@@ -53,9 +65,17 @@ export default function Header() {
             />
             <Link
               href="/profile"
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center hover:ring-2 hover:ring-primary transition"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center hover:ring-2 hover:ring-primary transition overflow-hidden bg-primary/20"
             >
-              <User className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <User className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              )}
             </Link>
 
             <button
