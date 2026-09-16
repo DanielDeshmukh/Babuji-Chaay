@@ -11,18 +11,7 @@ import RefundComponent from "@/components/RefundComponent";
 
 export default function AdminPage() {
   const [isVerified, setIsVerified] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(true);
   const router = useRouter();
-
-  const handleSuccess = () => {
-    setIsVerified(true);
-  };
-
-  const handleClose = () => {
-    if (!isVerified) {
-      router.push("/home");
-    }
-  };
 
   if (!isVerified) {
     return (
@@ -32,9 +21,9 @@ export default function AdminPage() {
           <p className="text-muted-foreground">Admin access requires PIN verification.</p>
         </main>
         <AdminPinModal
-          isOpen={showPinModal}
-          onClose={handleClose}
-          onSuccess={handleSuccess}
+          isOpen={true}
+          onClose={() => router.push("/home")}
+          onSuccess={() => setIsVerified(true)}
         />
       </div>
     );

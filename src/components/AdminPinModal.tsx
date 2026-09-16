@@ -36,7 +36,6 @@ export default function AdminPinModal({
         setMessage("Access granted!");
         setTimeout(() => {
           onSuccess();
-          onClose();
         }, 600);
       } else {
         setMessage("Incorrect PIN. Try again.");
@@ -44,7 +43,7 @@ export default function AdminPinModal({
       }
       setLoading(false);
     }, 300);
-  }, [pin, onSuccess, onClose]);
+  }, [pin, onSuccess]);
 
   const handleKeyPress = useCallback(
     (value: string) => {
