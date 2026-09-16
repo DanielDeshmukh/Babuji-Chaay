@@ -6,12 +6,11 @@ import PrintReceipt from "@/components/PrintReceipt";
 
 interface MenuItem {
   id: number;
-  product_id: number;
   name: string;
   category: string;
+  description: string;
   price: number;
   quantity: number;
-  is_available: boolean;
 }
 
 interface BillItem {
@@ -95,6 +94,7 @@ export default function MenuPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
   const [printJob, setPrintJob] = useState<{
     type: string;
     data: Record<string, unknown>;
@@ -116,18 +116,17 @@ export default function MenuPage() {
   const fetchMenu = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/todays-menu");
+      const res = await fetch("/api/products");
       const data = await res.json();
 
-      const formatted = (data.todays_menu || []).map(
+      const formatted = (data.products || []).map(
         (i: MenuItem) => ({
           id: i.id,
-          product_id: i.product_id,
           name: i.name || "Unnamed Product",
           category: i.category || "Uncategorized",
+          description: i.description || "",
           price: Number(i.price) || 0,
           quantity: i.quantity ?? 0,
-          is_available: i.is_available ?? true,
         })
       );
 
@@ -196,7 +195,7 @@ export default function MenuPage() {
         ...prev,
         {
           menu_item_id: item.id,
-          product_id: item.product_id,
+          product_id: item.id,
           name: item.name,
           price: item.price,
           quantity: 1,
@@ -333,12 +332,22 @@ export default function MenuPage() {
     }
   };
 
+  const categories = useMemo(
+    () => [
+      "All",
+      ...new Set(menuItems.map((i) => i.category || "Uncategorized")),
+    ],
+    [menuItems]
+  );
+
   const filteredMenu = useMemo(
     () =>
-      menuItems.filter((i) =>
-        i.name.toLowerCase().includes(search.toLowerCase())
+      menuItems.filter(
+        (i) =>
+          i.name.toLowerCase().includes(search.toLowerCase()) &&
+          (activeCategory === "All" || i.category === activeCategory)
       ),
-    [menuItems, search]
+    [menuItems, search, activeCategory]
   );
 
   if (loading)
@@ -360,15 +369,31 @@ export default function MenuPage() {
       <Header />
       <main className="flex-grow p-4 md:p-8 max-w-7xl mx-auto w-full pt-20">
         <h2 className="text-2xl font-bold text-center text-primary">
-          Today&apos;s Menu
+          Menu
         </h2>
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search menu..."
-          className="w-full p-3 my-6 rounded-lg border border-border bg-card"
+          className="w-full p-3 mb-4 rounded-lg border border-border bg-card"
         />
+
+        <div className="flex flex-wrap gap-2 mb-6">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                activeCategory === cat
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-secondary-foreground border border-border"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredMenu.map((item) => (
