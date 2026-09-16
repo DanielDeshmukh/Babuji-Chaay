@@ -262,14 +262,23 @@ export default function MenuPage() {
     if (!billItems.length) return alert("No items in the bill.");
 
     try {
+      const today = new Date().toISOString().split("T")[0];
+      const countRes = await fetch(`/api/transactions?start=${today}T00:00:00&end=${today}T23:59:59`);
+      const countData = await countRes.json();
+      const todayTxns = (countData.transactions || []).filter(
+        (t: Record<string, unknown>) => t.transaction_type === "SALE"
+      );
+      const nextBillNo = todayTxns.length + 1;
+      const isWinner = todaysSpecialNumber !== null && nextBillNo === todaysSpecialNumber;
+
       const txnRes = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          total_amount: Number(finalTotal.toFixed(2)),
-          discount: Number(effectiveDiscount.toFixed(2)),
-          cash_paid: Number(cashPaid.toFixed(2)),
-          upi_paid: Number(upiPaid.toFixed(2)),
+          total_amount: isWinner ? 0 : Number(finalTotal.toFixed(2)),
+          discount: isWinner ? Number(subtotal.toFixed(2)) : Number(effectiveDiscount.toFixed(2)),
+          cash_paid: isWinner ? 0 : Number(cashPaid.toFixed(2)),
+          upi_paid: isWinner ? 0 : Number(upiPaid.toFixed(2)),
           items: billItems.map((item) => ({
             product_id: item.product_id,
             quantity: item.quantity,
@@ -281,24 +290,9 @@ export default function MenuPage() {
       if (!txnRes.ok) throw new Error("Transaction failed");
       const txnData = await txnRes.json();
 
-      const isWinner =
-        Number(txnData.sale?.daily_bill_no) ===
-        Number(todaysSpecialNumber);
-
       if (isWinner) {
         setIsSpecialActive(true);
         setSpecialDiscount(true);
-
-        await fetch("/api/transactions", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: txnData.sale.id,
-            discount: subtotal,
-            cash_paid: 0,
-            upi_paid: 0,
-          }),
-        });
       }
 
       const receiptData = {
