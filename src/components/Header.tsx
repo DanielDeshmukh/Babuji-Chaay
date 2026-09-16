@@ -41,8 +41,8 @@ export default function Header() {
             <Link href="/menu" className={linkClasses("/menu")}>
               Menu
             </Link>
-            <Link href="/create" className={linkClasses("/create")}>
-              Create
+            <Link href="/admin" className={linkClasses("/admin")}>
+              Admin
             </Link>
           </nav>
 
@@ -88,11 +88,11 @@ export default function Header() {
               Menu
             </Link>
             <Link
-              href="/create"
-              className={linkClasses("/create")}
+              href="/admin"
+              className={linkClasses("/admin")}
               onClick={() => setMobileOpen(false)}
             >
-              Create
+              Admin
             </Link>
           </nav>
         )}
